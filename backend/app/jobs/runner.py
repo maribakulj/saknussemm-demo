@@ -36,12 +36,17 @@ from saknussemm.core.schemas import (
     PairingPolicy,
 )
 from saknussemm.errors import ConfigurationError
-from saknussemm.integrations.vision import build_image_asset
+from saknussemm.producers.vision import build_image_asset
 
+from app.jobs.engine_contract import require_engine_result_api
 from app.jobs.events import JobEventType
 from app.jobs.observers import CompositeObserver, JobStoreObserver, LoggingObserver
 from app.protocols import BaseProvider, JobStore, OutputWriter
 from app.schemas import DocumentManifest, JobStatus
+
+# Checked at import — i.e. at server startup — and not at the end of the
+# first run that reads one of those attributes. See engine_contract.
+require_engine_result_api()
 
 logger = logging.getLogger(__name__)
 
@@ -461,7 +466,7 @@ class JobRunner:
             # TEXT producer, around a client whose seam carries no images on
             # purpose. So the producer is assembled here, with the three things
             # a VLM run needs and a text run must not have.
-            from saknussemm.integrations.vision import (
+            from saknussemm.producers.vision import (
                 MultimodalStructuredClient,
                 VisionEditProducer,
             )

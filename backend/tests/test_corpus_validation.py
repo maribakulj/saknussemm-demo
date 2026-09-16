@@ -134,7 +134,8 @@ def _rewrite_and_parse(
     tmp_path: Path,
 ) -> tuple[etree._Element, RewriterMetrics]:
     """Rewrite and return (root_element, metrics)."""
-    xml_bytes, metrics, _paths = rewrite_alto_file(xml_path, pages, "test", "test-model")
+    rewritten = rewrite_alto_file(xml_path, pages, "test", "test-model")
+    xml_bytes, metrics = rewritten.xml_bytes, rewritten.metrics
     out = tmp_path / "out.xml"
     out.write_bytes(xml_bytes)
     return etree.fromstring(xml_bytes), metrics

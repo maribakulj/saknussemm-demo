@@ -19,7 +19,7 @@ from typing import Any
 
 import pytest
 from saknussemm.core.schemas import GuardConfig
-from saknussemm.integrations.vision import ImagePart, MultimodalStructuredClient
+from saknussemm.producers.vision import ImagePart, MultimodalStructuredClient
 
 from app.jobs.runner import _media_type_for, page_image_assets
 from app.providers.mistral_multimodal import MistralMultimodalProvider
@@ -255,7 +255,7 @@ def test_the_engine_never_sends_more_crops_than_declared() -> None:
     import asyncio
 
     from saknussemm.core.schemas import ModelCapabilities
-    from saknussemm.integrations.vision import VisionEditProducer
+    from saknussemm.producers.vision import VisionEditProducer
 
     provider = _RecordingMultimodalProvider()
     producer = VisionEditProducer(

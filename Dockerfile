@@ -38,9 +38,16 @@ RUN pip install --no-cache-dir --require-hashes -r /app/backend/requirements-loc
 # carry a VCS client it will never use again. All three lines retire
 # together the day saknussemm is on PyPI and this becomes a version pin.
 #
+# The ref is a build arg for one reason: Docker keys this layer's cache on
+# the command string, and "@main" is the same string forever. An image
+# rebuilt after the library moved silently re-used the old install, which
+# is how a months-old engine ended up serving a current backend. Pass
+# `--build-arg SAKNUSSEMM_REF=<commit>` for a reproducible (and
+# cache-busting) build; `docker compose build --no-cache` also works.
+ARG SAKNUSSEMM_REF=main
 RUN apt-get update && apt-get install -y --no-install-recommends git \
     && pip install --no-cache-dir --no-deps \
-       "saknussemm @ git+https://github.com/maribakulj/saknussemm@main" \
+       "saknussemm @ git+https://github.com/maribakulj/saknussemm@${SAKNUSSEMM_REF}" \
     && apt-get purge -y git && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 

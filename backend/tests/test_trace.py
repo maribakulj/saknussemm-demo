@@ -229,7 +229,15 @@ class TestTraceCorrectionAccepted:
         assert t.source_text == first_line.ocr_text
         assert t.proposal.output_text == corrected_text
         assert t.decision.final_text == corrected_text
-        assert t.decision.status == "corrected"
+        # The engine gained `review_required` (saknussemm #163): a line it
+        # corrected but could not vouch for on its own — here the change
+        # lands inside an all-caps word it reads as a proper noun. The
+        # proposal is still ACCEPTED (final_text == proposal, asserted
+        # right above); the label only says a human should look, which is
+        # exactly what this demo's review panel is for. What this test
+        # refuses is the pair that would mean the proposal was NOT taken.
+        assert t.decision.status in {"corrected", "review_required"}
+        assert t.decision.status not in {"fallback", "failed"}
 
 
 # ===========================================================================
@@ -319,12 +327,12 @@ class TestExtractOutputTexts:
             pytest.skip("X0000002.xml not available")
 
         pages, _ = parse_alto_file(X0000002_PATH, "X0000002.xml")
-        xml_bytes, _metrics, _paths = rewrite_alto_file(
+        xml_bytes = rewrite_alto_file(
             X0000002_PATH,
             pages,
             "test",
             "test-model",
-        )
+        ).xml_bytes
 
         hyp_lines = {
             lm.line_id
@@ -346,12 +354,12 @@ class TestExtractOutputTexts:
         all_ids = {lm.line_id for page in pages for lm in page.lines}
 
         # Rewrite without corrections (identity)
-        xml_bytes, _m, _p = rewrite_alto_file(
+        xml_bytes = rewrite_alto_file(
             X0000002_PATH,
             pages,
             "test",
             "test-model",
-        )
+        ).xml_bytes
         output_texts = extract_output_texts(xml_bytes, all_ids)
 
         line_by_id = {lm.line_id: lm for page in pages for lm in page.lines}
