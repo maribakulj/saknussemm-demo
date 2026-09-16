@@ -46,8 +46,13 @@ in the library — or out of scope.
 ## Running it
 
 ```bash
-# The library is not published yet, so it installs from git.
-pip install 'saknussemm @ git+https://github.com/maribakulj/saknussemm@main'
+# The library is not published yet, so it installs from git. The
+# [vision] extra is Pillow, and this backend needs it: without it every
+# vision job fails at the first crop.
+pip install 'saknussemm[vision] @ git+https://github.com/maribakulj/saknussemm@main'
+# Refreshing an environment that already has it: add --force-reinstall
+# --no-deps. `@main` moves, the version number does not, and pip can
+# consider the old copy satisfactory.
 pip install -r backend/requirements.txt -r backend/requirements-dev.txt
 cd backend && uvicorn app.main:app --reload --port 8000
 

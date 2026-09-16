@@ -22,6 +22,16 @@
 #   pip install 'saknussemm[vision] @ git+https://github.com/maribakulj/saknussemm@main'
 #   pip install -r backend/requirements.txt -r backend/requirements-dev.txt
 #
+# REFRESHING an environment that already carries the library needs
+# `--force-reinstall --no-deps` on the first line. `@main` moves and the
+# library's `__version__` does not move with it (0.9.0 before and after
+# `CorrectionResult.undeliverable_files` landed), so pip can call the
+# months-old copy satisfactory and say nothing. The same trap has a
+# Docker shape: the image layer is cached on its command string, hence
+# the `SAKNUSSEMM_REF` build arg in both Dockerfiles.
+# `app/jobs/engine_contract.py` turns a stale engine into a startup
+# refusal instead of an AttributeError at the end of a paid run.
+#
 # The `[vision]` extra is Pillow, and it is not optional for this backend:
 # `VisionEditProducer` crops each line from the page scan, and without Pillow
 # every vision job fails at the first crop with ModuleNotFoundError — measured,
