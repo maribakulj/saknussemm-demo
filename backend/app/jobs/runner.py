@@ -25,7 +25,7 @@ from saknussemm import (
     sanitize_error,
 )
 from saknussemm.core.events import ReconcileStats
-from saknussemm.core.protocols import ProviderPermanentError
+from saknussemm.core.protocols import EditProducer, ProviderPermanentError
 from saknussemm.core.schemas import (
     GuardConfig,
     ImageAsset,
@@ -195,6 +195,7 @@ class JobRunner:
         page_images: dict[str, PageImage] | None = None,
         timeout_seconds: int = 1800,
         should_abort: Callable[[], bool] | None = None,
+        producer: EditProducer | None = None,
     ) -> None:
         """Run a job end-to-end. Updates the JobStore as side effect.
 
@@ -240,6 +241,7 @@ class JobRunner:
                     pairing_policy=pairing_policy,
                     page_images=page_images,
                     should_abort=should_abort,
+                    producer=producer,
                 ),
                 timeout=timeout,
             )
@@ -437,6 +439,7 @@ class JobRunner:
         pairing_policy: PairingPolicy | None = None,
         page_images: dict[str, PageImage] | None = None,
         should_abort: Callable[[], bool] | None = None,
+        producer: EditProducer | None = None,
     ) -> CorrectionResult:
         """Drive the pure pipeline and persist its counters back.
 
@@ -461,7 +464,24 @@ class JobRunner:
         # for_provider convenience), never into run(): the pipeline surface
         # carries no api_key anywhere.
         observer = CompositeObserver([JobStoreObserver(self.job_store, job_id), LoggingObserver()])
-        if page_images:
+        if producer is not None:
+            # An INJECTED producer. Without this branch the runner can only
+            # ever assemble the keyed producer (`for_provider` builds that one
+            # and no other), so the library's `page_aligned` mode —
+            # `producers.page_llm.PageLLMEditProducer`, 28 calls against ~2 000
+            # and $0.14 against $1.11 on the 24 592-line corpus — was
+            # documented, measured, and unreachable from here. A campaign run
+            # through this runner could not compare the two modes the README
+            # compares.
+            #
+            # Credentials stay the caller's business: an injected producer was
+            # built with its own, which is why `api_key` is not forwarded here.
+            pipeline = CorrectionPipeline(
+                producer=producer,
+                observer=observer,
+                pairing_policy=pairing_policy,
+            )
+        elif page_images:
             # Vision run. `for_provider` cannot serve it: it always builds the
             # TEXT producer, around a client whose seam carries no images on
             # purpose. So the producer is assembled here, with the three things
