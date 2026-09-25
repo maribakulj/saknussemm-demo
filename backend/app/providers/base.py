@@ -318,6 +318,14 @@ def extract_chat_text(data: dict[str, Any], provider_label: str) -> dict[str, An
     if not choices or not isinstance(choices, list):
         raise ValueError(f"{provider_label} response missing 'choices': {list(data.keys())}")
     content = choices[0].get("message", {}).get("content")
+    if isinstance(content, list):
+        # Reasoning models (GLM on the Mistral platform, magistral) answer
+        # with content BLOCKS — ``thinking`` first, then ``text``. The JSON
+        # we asked for is the text; the thinking is theirs.
+        content = "".join(
+            block.get("text", "") for block in content
+            if isinstance(block, dict) and block.get("type") == "text"
+        )
     if not content:
         raise ValueError(f"{provider_label} response has empty content in choices[0].message")
     return json.loads(content)
