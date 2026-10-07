@@ -1,12 +1,15 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { LayoutBlock, LayoutData, LayoutLine, LayoutPage } from '../types'
 import { LayoutViewer } from './LayoutViewer'
+import { downloadReviews, touchReviewActivity } from '../api/client'
 
 vi.mock('../api/client', () => ({
   fetchReviews: vi.fn(async () => ({ reviews: [] })),
   putReviews: vi.fn(async (_job, reviews) => reviews),
+  touchReviewActivity: vi.fn(async () => {}),
+  downloadReviews: vi.fn(async () => {}),
 }))
 
 // ---------------------------------------------------------------------------
@@ -57,6 +60,56 @@ function data(pages: LayoutPage[]): LayoutData {
 // ---------------------------------------------------------------------------
 
 describe('LayoutViewer', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+  it('renews retention only after reader interaction and offers an explicit export', async () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(1000)
+    vi.mocked(touchReviewActivity).mockClear()
+    vi.mocked(downloadReviews).mockClear()
+    render(<LayoutViewer jobId="j1" data={data([page([block([line()])])])} />)
+    expect(touchReviewActivity).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: /Exporter les jugements/ }))
+    await waitFor(() => expect(downloadReviews).toHaveBeenCalledWith('j1'))
+    expect(touchReviewActivity).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: /Retenue/ }))
+    expect(touchReviewActivity).toHaveBeenCalledTimes(1)
+    clock.mockReturnValue(62000)
+    fireEvent.click(screen.getByRole('button', { name: /Retenue/ }))
+    await waitFor(() => expect(touchReviewActivity).toHaveBeenCalledTimes(2))
+    expect(screen.getByText(/mémoire temporaire/)).toBeInTheDocument()
+  })
+  it('binds a verified IIIF service to this page and job without inheriting a saved global URL', () => {
+    vi.stubGlobal('localStorage', { getItem: () => 'https://example.org/old/f9' })
+    const pages = [
+      page([block([line({ verdict: 'review_required' })])]),
+      page([block([line({ verdict: 'review_required' })])], { page_id: 'p2', page_index: 1 }),
+    ]
+    const { rerender } = render(<LayoutViewer jobId="j1" data={data(pages)} />)
+    const input = screen.getByRole('textbox', { name: /IIIF/ })
+    expect(input).toHaveValue('')
+    fireEvent.change(input, { target: { value: 'https://example.org/volume/f1' } })
+    fireEvent.click(screen.getByRole('button', { name: /Page 1.*L1/ }))
+    expect(screen.queryByAltText('Ligne L1 sur le scan')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('checkbox', { name: /coordonnées XML.*pixels/i }))
+    expect(screen.getByAltText('Ligne L1 sur le scan')).toHaveAttribute(
+      'src',
+      expect.stringContaining('/volume/f1/'),
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Page 2.*L1/ }))
+    expect(input).toHaveValue('')
+    expect(screen.queryByAltText('Ligne L1 sur le scan')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Page 1.*L1/ }))
+    expect(input).toHaveValue('https://example.org/volume/f1')
+    expect(screen.getByAltText('Ligne L1 sur le scan')).toBeInTheDocument()
+    fireEvent.change(input, { target: { value: 'https://example.org/other/f3' } })
+    expect(screen.queryByAltText('Ligne L1 sur le scan')).not.toBeInTheDocument()
+    rerender(<LayoutViewer jobId="j2" data={{ ...data(pages), job_id: 'j2' }} />)
+    expect(screen.getByRole('textbox', { name: /IIIF/ })).toHaveValue('')
+    expect(screen.queryByAltText('Ligne L1 sur le scan')).not.toBeInTheDocument()
+  })
+
   it('opens a flagged line on another page and keeps it flagged after a human judgement', async () => {
     const flagged = line({
       verdict: 'review_required',

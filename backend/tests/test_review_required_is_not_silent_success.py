@@ -150,3 +150,52 @@ def test_candidate_zip_identifies_each_unreviewed_file(client, referral_job):
             "sample_corrected_candidate.xml",
             "second_corrected_candidate.xml",
         ]
+
+
+def test_review_export_carries_exact_source_and_candidate_provenance(client, referral_job):
+    _, job, _, _ = referral_job
+    flagged = next(line for line in job.report.lines if line.decision.status == "review_required")
+    response = client.put(
+        f"/api/jobs/{job.job_id}/reviews",
+        json={
+            "reviews": [
+                {
+                    "page_id": flagged.page_id,
+                    "line_id": flagged.line_id,
+                    "verdict": "transcribed",
+                    "transcription": "human reading",
+                }
+            ]
+        },
+    )
+    assert response.status_code == 200
+    payload = client.get(f"/api/jobs/{job.job_id}/reviews/export").json()
+    row = payload["reviews"][0]
+    page = next(page for page in job.document_manifest.pages if page.page_id == flagged.page_id)
+    assert row["source_file"] == page.source_file
+    assert row["source_sha256"] == job.report.provenance.source_digests[page.source_file]
+    assert row["source_sha256"].startswith("sha256:")
+    assert row["source_text"] == flagged.source_text
+    assert row["candidate_text"] == flagged.decision.final_text
+    assert row["transcription"] == "human reading"
+    assert payload["engine_report"]["run_id"] == job.job_id
+    assert payload["engine_report"]["report_version"] == job.report.report_version
+    assert payload["annotations_only"] is True
+
+
+def test_unknown_page_or_line_cannot_be_added_to_a_real_job(client, referral_job):
+    _, job, _, _ = referral_job
+    response = client.put(
+        f"/api/jobs/{job.job_id}/reviews",
+        json={
+            "reviews": [
+                {
+                    "page_id": "not-in-this-job",
+                    "line_id": "TL2",
+                    "verdict": "accepted",
+                }
+            ]
+        },
+    )
+    assert response.status_code == 422
+    assert client.get(f"/api/jobs/{job.job_id}/reviews").json()["reviews"] == []

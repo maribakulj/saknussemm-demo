@@ -18,6 +18,20 @@ const stats: JobStats = {
 }
 
 describe('DownloadButton', () => {
+  it('names every missing file and the engine explanation', () => {
+    render(
+      <DownloadButton
+        jobId="j1"
+        status="completed_with_withheld_files"
+        stats={{
+          ...stats,
+          withheld_files: { 'page-002.xml': 'projection_diverged: L7' },
+        }}
+      />,
+    )
+    expect(screen.getByText('page-002.xml')).toBeInTheDocument()
+    expect(screen.getByText(/projection_diverged: L7/)).toBeInTheDocument()
+  })
   it('labels flagged output as a candidate even when some files were withheld', () => {
     render(
       <DownloadButton

@@ -21,6 +21,7 @@ from pathlib import Path
 import pytest
 
 from app.jobs.engine_contract import (
+    REINSTALL,
     REQUIRED_RESULT_ATTRS,
     EngineTooOldError,
     missing_result_attrs,
@@ -28,6 +29,14 @@ from app.jobs.engine_contract import (
 )
 
 RUNNER_SOURCE = Path(__file__).resolve().parent.parent / "app" / "jobs" / "runner.py"
+
+
+def test_reinstall_recipe_matches_the_reviewed_container_commit():
+    root = Path(__file__).resolve().parents[2]
+    ref = re.search(r"ARG SAKNUSSEMM_REF=([0-9a-f]{40})", (root / "Dockerfile").read_text())
+    assert ref is not None
+    assert f"saknussemm@{ref.group(1)}" in REINSTALL
+    assert "saknussemm@main" not in REINSTALL
 
 
 def test_the_installed_engine_satisfies_the_contract():

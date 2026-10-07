@@ -193,7 +193,21 @@ class JobStore:
             # included; forgetting a terminal state here means the job is
             # NEVER TTL-evicted.
             if job.status in _TERMINAL_STATES:
-                self._completed_at.setdefault(job_id, time.monotonic())
+                if reviews is not None:
+                    self._completed_at[job_id] = time.monotonic()
+                else:
+                    self._completed_at.setdefault(job_id, time.monotonic())
+
+    def touch_review(self, job_id: str) -> None:
+        """Renew retention on explicit review activity, never on status polling.
+
+        This only extends the in-memory job's idle timeout. The hard job cap
+        and process restarts still apply; callers must export valuable work.
+        """
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is not None and job.status in _TERMINAL_STATES:
+                self._completed_at[job_id] = time.monotonic()
 
     # ------------------------------------------------------------------
     # SSE
@@ -442,7 +456,7 @@ class JobStore:
         emit — and the event loop itself — for the duration.
         """
         now = time.monotonic()
-        stale = [jid for jid, ts in self._completed_at.items() if now - ts > self._ttl_seconds]
+        stale = [jid for jid, ts in self._completed_at.items() if now - ts >= self._ttl_seconds]
         # Hard cap: if too many completed jobs, evict oldest first
         if len(self._completed_at) > _MAX_COMPLETED_JOBS:
             by_age = sorted(self._completed_at, key=self._completed_at.get)  # type: ignore[arg-type]

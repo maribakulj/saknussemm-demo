@@ -13,7 +13,7 @@ permissions:
 
 # Same reviewed library commit as both Dockerfile defaults.
 env:
-  SAKNUSSEMM_REF: 50bb6e58f8baa24dbd66f34e655ec071fb3f7d54
+  SAKNUSSEMM_REF: d30c493f64150b890609123d66c7c5820ba10b48
 
 # Cancel in-flight CI when a newer commit is pushed to the same ref.
 # Saves CI minutes; the only thing that matters is the latest state.

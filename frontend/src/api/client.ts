@@ -244,3 +244,27 @@ export async function putReviews(jobId: string, reviews: LineReview[]): Promise<
   const body = (await response.json()) as { reviews: LineReview[] }
   return body.reviews
 }
+
+export async function touchReviewActivity(jobId: string): Promise<void> {
+  const response = await fetch(`${BASE}/api/jobs/${jobId}/reviews/activity`, {
+    method: 'POST',
+    headers: tokenHeaders(),
+  })
+  if (!response.ok) throw new Error('La session de relecture ne peut pas être prolongée.')
+}
+
+export async function downloadReviews(jobId: string): Promise<void> {
+  const response = await fetch(`${BASE}/api/jobs/${jobId}/reviews/export`, {
+    headers: tokenHeaders(),
+  })
+  if (!response.ok) throw new Error("Impossible d'exporter les jugements enregistrés.")
+  const url = URL.createObjectURL(await response.blob())
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = `job_${jobId}_reviews.json`
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  // Leave time for the browser to start the download before releasing bytes.
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}

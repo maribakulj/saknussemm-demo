@@ -48,10 +48,18 @@ export function DownloadButton({ jobId, stats, status }: DownloadButtonProps) {
           </ul>
         </div>
       )}
-      {status === 'completed_with_withheld_files' && (
-        <p className="text-sm text-orange-300">
-          Résultat incomplet : des fichiers manquent au téléchargement.
-        </p>
+      {(status === 'completed_with_withheld_files' ||
+        Object.keys(stats?.withheld_files ?? {}).length > 0) && (
+        <div className="text-sm text-orange-300">
+          <p>Résultat incomplet : des fichiers manquent au téléchargement.</p>
+          <ul className="mt-2 space-y-1 break-words">
+            {Object.entries(stats?.withheld_files ?? {}).map(([file, reason]) => (
+              <li key={file}>
+                <strong>{file}</strong> — {reason}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
       {/* Stats */}
       {stats && (

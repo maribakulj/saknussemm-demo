@@ -593,6 +593,79 @@
           }
         }
       }
+    },
+    "/api/jobs/{job_id}/reviews/activity": {
+      "post": {
+        "tags": ["review"],
+        "summary": "Review Activity",
+        "description": "A reader interacted with the review UI; renew its idle timeout.",
+        "operationId": "review_activity_api_jobs__job_id__reviews_activity_post",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/{job_id}/reviews/export": {
+      "get": {
+        "tags": ["review"],
+        "summary": "Export Reviews",
+        "description": "Export saved annotations and their source/candidate evidence.",
+        "operationId": "export_reviews_api_jobs__job_id__reviews_export_get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

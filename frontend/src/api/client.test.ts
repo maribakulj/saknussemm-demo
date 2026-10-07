@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createJob,
   downloadJob,
+  downloadReviews,
   eventsUrlFor,
   fetchDiff,
   fetchLayout,
@@ -16,6 +17,7 @@ import {
   listModels,
   setEventsUrl,
   setJobToken,
+  touchReviewActivity,
 } from './client'
 
 function jsonResponse(
@@ -50,6 +52,32 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
+  vi.useRealTimers()
+})
+
+it('exports saved reviews using the job token and releases the downloaded blob', async () => {
+  vi.useFakeTimers()
+  setJobToken('owner-secret')
+  const createObjectURL = vi.fn(() => 'blob:reviews')
+  const revokeObjectURL = vi.fn()
+  vi.stubGlobal('URL', { createObjectURL, revokeObjectURL })
+  const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+  fetchMock.mockResolvedValue({ ok: true, blob: async () => new Blob(['{"reviews":[]}']) })
+  await downloadReviews('j1')
+  expect(fetchMock).toHaveBeenCalledWith('/api/jobs/j1/reviews/export', {
+    headers: { 'X-Job-Token': 'owner-secret' },
+  })
+  expect(click).toHaveBeenCalledTimes(1)
+  expect(click.mock.instances[0]).toHaveAttribute('download', 'job_j1_reviews.json')
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(revokeObjectURL).toHaveBeenCalledWith('blob:reviews')
+})
+
+it('does not hide failed review activity or exports', async () => {
+  fetchMock.mockResolvedValue({ ok: false })
+  await expect(touchReviewActivity('j1')).rejects.toThrow(/prolongée/)
+  await expect(downloadReviews('j1')).rejects.toThrow(/exporter/)
 })
 
 // ---------------------------------------------------------------------------

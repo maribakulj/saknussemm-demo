@@ -24,16 +24,19 @@ judgements the first time a job carries more than one ALTO.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from enum import StrEnum
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
 from app.api.deps import get_job_store
 from app.api.jobs import require_job_access
 from app.protocols import JobStore
 from app.schemas import JobManifest
+from app.schemas.job import TERMINAL_SUCCESS_STATES
 
 router = APIRouter(prefix="/api/jobs", tags=["review"])
 
@@ -118,6 +121,14 @@ async def put_reviews(
                 f"line {review.line_id!r}: a 'transcribed' review must carry the "
                 "text the reader read on the image — that text IS the review.",
             )
+    if job.document_manifest is not None:
+        known = {
+            (page.page_id, line.line_id)
+            for page in job.document_manifest.pages
+            for line in page.lines
+        }
+        if any(review.key not in known for review in batch.reviews):
+            raise HTTPException(422, "A review refers to a page or line outside this job.")
 
     merged = _existing(job)
     stamped = datetime.now(UTC).isoformat(timespec="seconds")
@@ -138,6 +149,68 @@ async def get_reviews(
         job_id=job_id,
         reviews=sorted(_existing(job).values(), key=lambda r: (r.page_id, r.line_id)),
     )
+
+
+@router.post("/{job_id}/reviews/activity", status_code=204)
+async def review_activity(
+    job: JobManifest = Depends(require_job_access),
+    store: JobStore = Depends(get_job_store),
+) -> Response:
+    """A reader interacted with the review UI; renew its idle timeout."""
+    store.touch_review(job.job_id)
+    return Response(status_code=204)
+
+
+def _export_response(job: JobManifest) -> JSONResponse:
+    """Build a portable annotation snapshot without changing candidate XML."""
+    report = job.report
+    provenance = report.provenance if report is not None else None
+    digests = provenance.source_digests if provenance is not None else {}
+    pages = (
+        {page.page_id: page for page in job.document_manifest.pages}
+        if job.document_manifest is not None
+        else {}
+    )
+    outcomes = {(line.page_id, line.line_id): line for line in report.lines} if report else {}
+    rows = []
+    for review in sorted(_existing(job).values(), key=lambda r: r.key):
+        page = pages.get(review.page_id)
+        outcome = outcomes.get(review.key)
+        source_file = page.source_file if page is not None else None
+        rows.append(
+            {
+                **review.model_dump(mode="json"),
+                "source_file": source_file,
+                "source_sha256": digests.get(source_file) if source_file is not None else None,
+                "source_text": outcome.source_text if outcome is not None else None,
+                "candidate_text": outcome.decision.final_text if outcome is not None else None,
+            }
+        )
+    return JSONResponse(
+        {
+            "export_version": 1,
+            "job_id": job.job_id,
+            "exported_at": datetime.now(UTC).isoformat(timespec="seconds"),
+            "annotations_only": True,
+            "reviews": rows,
+            # Includes input digests, engine/policy versions and exact candidate
+            # outcomes. Never serialize JobManifest (it carries a token hash).
+            "engine_report": report.model_dump(mode="json", exclude_none=True) if report else None,
+        },
+        headers={"Content-Disposition": f'attachment; filename="job_{job.job_id}_reviews.json"'},
+    )
+
+
+@router.get("/{job_id}/reviews/export")
+async def export_reviews(
+    job: JobManifest = Depends(require_job_access),
+    store: JobStore = Depends(get_job_store),
+) -> Response:
+    """Export saved annotations and their source/candidate evidence."""
+    if job.status not in TERMINAL_SUCCESS_STATES:
+        raise HTTPException(409, "Wait for the job to complete before exporting reviews.")
+    store.touch_review(job.job_id)
+    return await asyncio.to_thread(_export_response, job)
 
 
 __all__ = ["LineReview", "ReviewBatch", "ReviewVerdict", "router"]

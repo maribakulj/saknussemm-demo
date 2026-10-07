@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { fetchReviews } from '../api/client'
+import { downloadReviews, fetchReviews, touchReviewActivity } from '../api/client'
 import { looksLikeService } from '../lib/iiif'
 import { lineKey, type LineKey } from '../lib/lineKey'
 import { FAMILY, verdictFamily, type VerdictFamily } from '../lib/verdicts'
@@ -270,6 +270,11 @@ interface LayoutViewerProps {
 }
 
 export function LayoutViewer({ data, jobId }: LayoutViewerProps) {
+  // Reset selections, judgements and scan bindings when the job changes.
+  return <LayoutViewerSession key={jobId ?? data.job_id} data={data} jobId={jobId} />
+}
+
+function LayoutViewerSession({ data, jobId }: LayoutViewerProps) {
   const [pageIdx, setPageIdx] = useState(0)
   const [overlayOpacity, setOverlayOpacity] = useState(0.85)
   // All families on by default: a reviewer opening the page should see
@@ -279,14 +284,43 @@ export function LayoutViewer({ data, jobId }: LayoutViewerProps) {
   )
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [reviews, setReviews] = useState<Map<LineKey, LineReview>>(new Map())
-  // Remembered per browser, not per job: a reviewer working through one
-  // volume pastes the service once and every page of it resolves. The ALTO
-  // does not carry the identifier, so guessing it would be inventing
-  // provenance — the reader supplies it or the panel shows text only.
-  const [iiifService, setIiifService] = useState<string>(
-    () => globalThis.localStorage?.getItem('saknussemm.iiif') ?? '',
-  )
-  const iiifUsable = looksLikeService(iiifService)
+  // A service identifies one image. Never inherit the old browser-wide URL:
+  // it could belong to another page or another volume. No mapping is guessed.
+  const [scanBindings, setScanBindings] = useState<
+    Record<
+      string,
+      {
+        service: string
+        pixelsConfirmed: boolean
+      }
+    >
+  >({})
+  const [reviewError, setReviewError] = useState<string | null>(null)
+  const [activityError, setActivityError] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
+  const lastActivity = useRef(-Infinity)
+
+  function recordActivity() {
+    if (!jobId || Date.now() - lastActivity.current < 60_000) return
+    lastActivity.current = Date.now()
+    void touchReviewActivity(jobId).then(
+      () => setActivityError(null),
+      () => setActivityError('Session non prolongée. Exportez vos jugements avant de quitter.'),
+    )
+  }
+
+  async function exportReviews() {
+    if (!jobId || exporting) return
+    setExporting(true)
+    setReviewError(null)
+    try {
+      await downloadReviews(jobId)
+    } catch (error) {
+      setReviewError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setExporting(false)
+    }
+  }
 
   // Judgements already made travel with the job, so a reader can stop and
   // come back without losing the page they had worked through.
@@ -346,6 +380,9 @@ export function LayoutViewer({ data, jobId }: LayoutViewerProps) {
   }
 
   const currentPage = data.pages[pageIdx] ?? data.pages[0]
+  const binding = scanBindings[currentPage.page_id]
+  const iiifService = binding?.service ?? ''
+  const iiifUsable = looksLikeService(iiifService)
   const selectedLine: LayoutLine | null = selectedId
     ? (currentPage?.blocks.flatMap((b) => b.lines).find((l) => l.line_id === selectedId) ?? null)
     : null
@@ -359,7 +396,12 @@ export function LayoutViewer({ data, jobId }: LayoutViewerProps) {
   )
 
   return (
-    <div className="rounded-lg border border-slate-700/60 bg-slate-800/40 overflow-hidden">
+    <div
+      className="rounded-lg border border-slate-700/60 bg-slate-800/40 overflow-hidden"
+      onClickCapture={recordActivity}
+      onKeyDownCapture={recordActivity}
+      onScrollCapture={recordActivity}
+    >
       {/* Header */}
       <div className="px-4 py-3 border-b border-slate-700/60 flex items-center justify-between gap-4 flex-wrap">
         <h3 className="font-serif text-sm font-semibold text-slate-200">
@@ -414,18 +456,21 @@ export function LayoutViewer({ data, jobId }: LayoutViewerProps) {
             })}
           </div>
 
-          {/* IIIF service — full-resolution line crops, nothing stored */}
+          {/* IIIF binding is local to this page in this job. */}
           <label className="flex items-center gap-2">
             <span className="font-mono text-[10px] text-slate-500 uppercase tracking-wider whitespace-nowrap">
-              IIIF
+              IIIF — cette page
             </span>
             <input
               type="url"
               value={iiifService}
               placeholder="https://…/iiif/image/v3/ark:/12148/…/f1"
               onChange={(e) => {
-                setIiifService(e.target.value)
-                globalThis.localStorage?.setItem('saknussemm.iiif', e.target.value)
+                const service = e.target.value
+                setScanBindings((current) => ({
+                  ...current,
+                  [currentPage.page_id]: { service, pixelsConfirmed: false },
+                }))
               }}
               className={`font-mono text-[11px] bg-slate-900 border rounded px-2 py-1 w-56
                           text-slate-200 focus:outline-none focus:border-amber-500 ${
@@ -459,6 +504,59 @@ export function LayoutViewer({ data, jobId }: LayoutViewerProps) {
           )}
         </div>
       </div>
+
+      {iiifService && (
+        <div className="px-4 py-3 text-xs text-slate-300 border-b border-slate-700/40 space-y-2">
+          <label className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              checked={binding?.pixelsConfirmed ?? false}
+              disabled={!iiifUsable}
+              onChange={(event) => {
+                const pixelsConfirmed = event.target.checked
+                setScanBindings((current) => ({
+                  ...current,
+                  [currentPage.page_id]: { service: iiifService, pixelsConfirmed },
+                }))
+              }}
+            />
+            J'ai vérifié : cette image correspond à la page et les coordonnées XML sont ses pixels
+            (mêmes origine et dimensions).
+          </label>
+          <p>
+            Sans cette vérification, aucun extrait n'est affiché. Les coordonnées en mm10, les
+            images recadrées ou tournées nécessitent une transformation non prise en charge ici.
+          </p>
+        </div>
+      )}
+
+      {jobId && (
+        <div className="px-4 py-3 border-b border-slate-700/40 text-xs text-slate-300 space-y-2">
+          <p>
+            Les jugements restent en mémoire temporaire. Vos interactions prolongent la session ;
+            après une heure sans activité, un redémarrage ou la limite de capacité, ils peuvent être
+            perdus. Exportez les jugements enregistrés pour les conserver.
+          </p>
+          <button
+            type="button"
+            onClick={() => void exportReviews()}
+            disabled={exporting}
+            className="underline underline-offset-2 disabled:opacity-50"
+          >
+            {exporting ? 'Export en cours…' : 'Exporter les jugements enregistrés (JSON)'}
+          </button>
+          {reviewError && (
+            <p role="alert" className="text-amber-200">
+              {reviewError}
+            </p>
+          )}
+          {activityError && (
+            <p role="alert" className="text-amber-200">
+              {activityError}
+            </p>
+          )}
+        </div>
+      )}
 
       {reviewQueue.length > 0 && (
         <section
@@ -541,7 +639,7 @@ export function LayoutViewer({ data, jobId }: LayoutViewerProps) {
             pageId={currentPage.page_id}
             line={selectedLine}
             existing={reviews.get(lineKey(currentPage.page_id, selectedLine.line_id)) ?? null}
-            iiifService={iiifUsable ? iiifService : null}
+            iiifService={iiifUsable && binding?.pixelsConfirmed ? iiifService.trim() : null}
             onSaved={(review) =>
               setReviews((current) => {
                 const next = new Map(current)

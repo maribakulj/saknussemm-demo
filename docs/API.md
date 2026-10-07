@@ -45,6 +45,8 @@ scoped to one job and one purpose:
 | `GET /api/jobs/{id}/images/{name}` | Source scan image (auth via `?sig=` or header) |
 | `GET /api/jobs/{id}/reviews` | Recorded human judgements, keyed by page and line |
 | `PUT /api/jobs/{id}/reviews` | Record `accepted`, `refused` or `transcribed` judgements; does not rewrite XML |
+| `POST /api/jobs/{id}/reviews/activity` | Renew idle retention after reader interaction; requires the job token |
+| `GET /api/jobs/{id}/reviews/export` | Download saved annotations and source/candidate evidence as JSON; requires the job token |
 | `GET /health`, `/health/live`, `/health/ready` | Probes — `ready` includes storage, frontend (when promised) and load gauges |
 
 Job state machine: `queued → started → running → completed |
@@ -66,6 +68,25 @@ filenames contain `candidate`, and the response carries
 bytes or remove this label: a refusal does not restore the source, and a
 transcription does not replace the XML text. This demo has no approved-output
 publication step.
+
+Review activity, successful saves and explicit exports renew the terminal
+job's idle timeout. Reading status, SSE or the review list does not. The
+default is one hour of inactivity; capacity eviction and process restarts
+still apply. This is temporary memory, not a durable review database.
+
+The version-1 review export identifies the job and export date, declares
+`annotations_only: true`, and includes the engine report. Each saved review
+contains its page/line identifiers, source filename and SHA-256, source text,
+candidate text, human judgement and timestamp. Evidence unavailable on
+manually constructed jobs is explicitly `null`, never inferred. The export
+requires a completed job; a new judgement outside a known document manifest
+is rejected with 422. Exported annotations do not approve or change XML.
+
+IIIF services in the viewer are bound to a page within a job and are not
+inherited from another job. Pixel crops require explicit verification of
+page identity and the coordinate frame. The manifest does not expose an
+ALTO measurement unit or image transform; mm10 or cropped/rotated image
+coordinates are not silently treated as pixels.
 
 ## SSE events
 

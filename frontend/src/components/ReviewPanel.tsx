@@ -26,7 +26,8 @@ interface ReviewPanelProps {
   /** The reader's existing judgement on this line, if any. */
   existing: LineReview | null
   /**
-   * IIIF Image API service base for this page, when the reader has one.
+   * IIIF Image API service base for this page, after the caller verified
+   * that the line coordinates are pixels in this image's reference frame.
    * With it, the line is shown at the scan's NATIVE resolution and nothing is
    * stored — the alternative is judging a word from a downscaled preview,
    * which on a newspaper line is roughly 13 pixels tall.

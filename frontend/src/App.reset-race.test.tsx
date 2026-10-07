@@ -23,6 +23,8 @@ vi.mock('./api/client', () => ({
   // whole component tree fails to render and every case here reports a
   // mock error instead of what it was testing.
   fetchReviews: vi.fn().mockResolvedValue({ reviews: [] }),
+  touchReviewActivity: vi.fn().mockResolvedValue(undefined),
+  downloadReviews: vi.fn().mockResolvedValue(undefined),
   putReviews: vi.fn().mockResolvedValue([]),
   fetchTrace: vi.fn(),
   listModels: vi.fn(),
