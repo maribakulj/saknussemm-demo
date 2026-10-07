@@ -172,6 +172,65 @@ async function exhaustStreamRetries() {
   }
 }
 
+describe('review-required completion', () => {
+  it('closes SSE and retains review counts even when a file is withheld', () => {
+    const { result } = renderHook(() => useJobStream('job-1'))
+    const es = FakeEventSource.last()
+    act(() => {
+      es.dispatch('completed', {
+        status: 'completed_with_withheld_files',
+        review_lines: 2,
+        review_reasons: { digits_changed: 2 },
+        withheld_files: { 'missing.xml': 'invalid output' },
+      })
+    })
+    expect(result.current.finalStats).toMatchObject({
+      review_lines: 2,
+      review_reasons: { digits_changed: 2 },
+      withheld_files: { 'missing.xml': 'invalid output' },
+    })
+    expect(
+      result.current.logs.some((log) => log.type === 'warning' && /relecture/i.test(log.message)),
+    ).toBe(true)
+    expect(es.closed).toBe(true)
+    expect(result.current.isRunning).toBe(false)
+  })
+
+  it.each(['completed_with_review_required', 'completed_with_withheld_files'])(
+    'stops polling on %s while retaining review information',
+    async (status) => {
+      const { counts } = fetchResponding([
+        {
+          job_id: 'job-1',
+          status,
+          total_lines: 10,
+          lines_modified: 4,
+          review_lines: 2,
+          review_reasons: { digits_changed: 2 },
+          withheld_files: { 'missing.xml': 'invalid output' },
+          fallbacks: 0,
+          duration_seconds: 1,
+        },
+      ])
+      const { result } = renderHook(() => useJobStream('job-1'))
+      await exhaustStreamRetries()
+      expect(result.current.finalStats).toMatchObject({
+        review_lines: 2,
+        review_reasons: { digits_changed: 2 },
+      })
+      expect(result.current.isRunning).toBe(false)
+      const polls = counts.statusPolls
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(20_000)
+      })
+      expect(counts.statusPolls).toBe(polls)
+      expect(
+        result.current.logs.some((log) => log.type === 'warning' && /relecture/i.test(log.message)),
+      ).toBe(true)
+    },
+  )
+})
+
 /** Stub fetch, routing by URL: /events-url mints a fresh signed URL
  * (renewal path), everything else serves the status-poll payloads in
  * order. Returns the mock plus a per-route call counter. */
@@ -235,6 +294,9 @@ describe('V1.2 — stream loss falls back to polling, never fails the job', () =
       lines_modified: 4,
       hyphen_pairs: 0,
       duration_seconds: 12.5,
+      review_lines: 0,
+      review_reasons: {},
+      withheld_files: {},
     })
   })
 
@@ -388,6 +450,9 @@ describe('V1.2 — terminal stats are structured, not parsed from log text', () 
       lines_modified: 5,
       hyphen_pairs: 3,
       duration_seconds: 7.25,
+      review_lines: 0,
+      review_reasons: {},
+      withheld_files: {},
     })
   })
 })

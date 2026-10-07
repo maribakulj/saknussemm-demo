@@ -8,7 +8,7 @@ They pin the behaviour proven live on 2026-07-13:
   and hyphenation invariants intact;
 - sabotaged job: hyphen fusion, next-line absorption and emptied lines
   are ALL intercepted by the guards — the lines fall back to OCR and
-  the job ends ``completed_with_fallbacks``;
+  their fallback count survives even when another line needs review;
 - capability token: every job endpoint is a 404 without the token.
 """
 
@@ -69,7 +69,9 @@ def test_honest_job_end_to_end(backend_server, use_honest_vendor):
     names = [name for name, _ in events]
     terminal_name, terminal_data = events[-1]
     assert terminal_name == "completed", events
-    assert terminal_data["status"] == "completed"
+    assert terminal_data["status"] == "completed_with_review_required"
+    assert terminal_data["review_lines"] == 1
+    assert terminal_data["review_reasons"] == {"proper_noun_changed": 1}
     # Live progress reached the subscriber (not just the synthetic
     # terminal): the honest mock's completion delay guarantees at least
     # the end-of-chunk/page/stats events are emitted after we connect.
@@ -78,7 +80,9 @@ def test_honest_job_end_to_end(backend_server, use_honest_vendor):
 
     status = httpx.get(f"{base_url}/api/jobs/{job_id}", headers={"X-Job-Token": token}, timeout=30)
     assert status.status_code == 200
-    assert status.json()["status"] == "completed"
+    assert status.json()["status"] == "completed_with_review_required"
+    assert status.json()["review_lines"] == terminal_data["review_lines"]
+    assert status.json()["review_reasons"] == terminal_data["review_reasons"]
 
     output = download_xml(base_url, job_id, token)
     source = SAMPLE_XML.read_bytes()
@@ -163,9 +167,11 @@ def test_sabotaged_job_falls_back_and_reports_it(backend_server, use_sabotage_ve
     events = collect_sse_until_terminal(base_url, job_id, token, timeout=300.0)
     terminal_name, terminal_data = events[-1]
     assert terminal_name == "completed", events
-    # Degraded-success visibility: sabotaged lines were replaced by OCR
-    # source, so the terminal status must be completed_with_fallbacks.
-    assert terminal_data["status"] == "completed_with_fallbacks"
+    # Review takes priority over fallbacks: TL2's proper noun still needs
+    # judgement, and the rejected corruptions remain visible in the count.
+    assert terminal_data["status"] == "completed_with_review_required"
+    assert terminal_data["review_lines"] == 1
+    assert terminal_data["review_reasons"] == {"proper_noun_changed": 1}
     assert terminal_data.get("fallbacks", 0) > 0
 
     output = download_xml(base_url, job_id, token)

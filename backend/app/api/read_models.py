@@ -94,6 +94,9 @@ def build_layout(
                 "verdict": reason.code if reason is not None else trace.decision.status,
                 "verdict_detail": reason.detail if reason is not None else None,
                 "proposed_text": proposed,
+                "review_reasons": [
+                    item.model_dump(mode="json") for item in trace.decision.review_reasons
+                ],
                 # A proposal the engine declined is the reviewer's most
                 # interesting case: something was on offer and was refused.
                 "proposal_declined": bool(
@@ -130,6 +133,7 @@ def build_layout(
                                 "verdict": None,
                                 "verdict_detail": None,
                                 "proposed_text": None,
+                                "review_reasons": [],
                                 "proposal_declined": False,
                             },
                         ),

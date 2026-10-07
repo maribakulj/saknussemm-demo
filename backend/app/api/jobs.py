@@ -496,6 +496,9 @@ async def get_job(
         chunks_total=job.chunks_total,
         retries=job.retries,
         fallbacks=job.fallbacks,
+        review_lines=job.review_lines,
+        review_reasons=job.review_reasons,
+        withheld_files=job.withheld_files,
         duration_seconds=job.duration_seconds,
         error=job.error,
     )
@@ -507,14 +510,7 @@ async def get_job(
 
 
 #: States after which a cancel request is a no-op (job already settled).
-_SETTLED_STATES = frozenset(
-    {
-        JobStatus.COMPLETED,
-        JobStatus.COMPLETED_WITH_FALLBACKS,
-        JobStatus.FAILED,
-        JobStatus.CANCELLED,
-    }
-)
+_SETTLED_STATES = TERMINAL_SUCCESS_STATES | {JobStatus.FAILED, JobStatus.CANCELLED}
 
 
 @router.post("/{job_id}/cancel", response_model=JobStatusResponse, status_code=202)
@@ -545,6 +541,9 @@ async def cancel_job(
         chunks_total=fresh.chunks_total,
         retries=fresh.retries,
         fallbacks=fresh.fallbacks,
+        review_lines=fresh.review_lines,
+        review_reasons=fresh.review_reasons,
+        withheld_files=fresh.withheld_files,
         duration_seconds=fresh.duration_seconds,
         error=fresh.error,
     )
@@ -622,7 +621,7 @@ async def mint_download_url(
 # ---------------------------------------------------------------------------
 
 
-def _build_zip_archive(tmp_path: str, out_files: list[Path]) -> None:
+def _build_zip_archive(tmp_path: str, out_files: list[Path], *, candidate: bool = False) -> None:
     """Write a DEFLATE ZIP of ``out_files`` to ``tmp_path``.
 
     Extracted so the CPU-bound compression can run under
@@ -630,7 +629,8 @@ def _build_zip_archive(tmp_path: str, out_files: list[Path]) -> None:
     """
     with zipfile.ZipFile(tmp_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         for p in out_files:
-            zf.write(p, arcname=p.name)
+            name = f"{p.stem}_candidate{p.suffix}" if candidate else p.name
+            zf.write(p, arcname=name)
 
 
 @router.get("/{job_id}/download")
@@ -662,6 +662,11 @@ async def download_job(
             detail="Output not ready yet. Wait for job to complete.",
         )
 
+    # Human judgements are annotations, not edits to these bytes. A review
+    # referral therefore remains a candidate even after a reader records a
+    # verdict: neither "refused" nor "transcribed" restores the XML here.
+    candidate = job.review_lines > 0
+    download_headers = {"X-Saknussemm-Review-Lines": str(job.review_lines)}
     if len(out_files) == 1:
         # FileResponse streams the file in 64 KB chunks instead of
         # holding the full body in memory (the old `xml_path.read_bytes()`
@@ -670,7 +675,8 @@ async def download_job(
         return FileResponse(
             xml_path,
             media_type="application/xml",
-            filename=xml_path.name,
+            filename=f"{xml_path.stem}_candidate{xml_path.suffix}" if candidate else xml_path.name,
+            headers=download_headers,
         )
 
     # L10/F8 — multi-file: build the ZIP on disk in a NamedTemporaryFile,
@@ -679,7 +685,7 @@ async def download_job(
     # bytes blob; on a 500 MB job × a handful of concurrent downloads
     # that's multi-GB resident memory. The tempfile is cleaned up via
     # a BackgroundTask that fires AFTER the response is fully sent.
-    zip_name = f"job_{job_id}_corrected.zip"
+    zip_name = f"job_{job_id}_{'candidate' if candidate else 'corrected'}.zip"
     with tempfile.NamedTemporaryFile(suffix=".zip", prefix="alto_dl_", delete=False) as tmp:
         tmp_path = tmp.name
     # The `with` block closed the file handle but `delete=False` means
@@ -689,7 +695,7 @@ async def download_job(
         # 500 MB extraction budget) is CPU-bound; running it inline on the
         # async handler froze every other coroutine on the single-worker
         # loop for the whole build. Offload it.
-        await asyncio.to_thread(_build_zip_archive, tmp_path, out_files)
+        await asyncio.to_thread(_build_zip_archive, tmp_path, out_files, candidate=candidate)
     except Exception:
         # If we crash building the ZIP, the BackgroundTask hasn't been
         # attached yet — clean up by hand so we don't leak the tempfile.
@@ -700,6 +706,7 @@ async def download_job(
         tmp_path,
         media_type="application/zip",
         filename=zip_name,
+        headers=download_headers,
         background=BackgroundTask(os.unlink, tmp_path),
     )
 

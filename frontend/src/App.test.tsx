@@ -241,6 +241,26 @@ describe('App — happy path', () => {
 })
 
 describe('App — degraded and failure paths', () => {
+  it('opens the results and candidate download when the engine requires review', async () => {
+    const { container } = render(<App />)
+    const es = await startJob(container)
+    act(() => {
+      es.dispatch(
+        'completed',
+        completePayload({
+          status: 'completed_with_review_required',
+          review_lines: 2,
+          review_reasons: { digits_changed: 2 },
+        }),
+      )
+    })
+    await screen.findByText('TERMINÉ — RELECTURE REQUISE')
+    await screen.findByRole('button', { name: /XML candidat pour relecture/i })
+    expect(screen.getByRole('button', { name: /new correction/i })).toBeInTheDocument()
+    await screen.findByText('Résultats de correction')
+    expect(mocked.fetchLayout).toHaveBeenCalledWith('job-1')
+  })
+
   it('surfaces createJob errors under the play button', async () => {
     mocked.createJob.mockRejectedValue(new Error('quota exceeded'))
     const { container } = render(<App />)

@@ -55,6 +55,8 @@ REQUIRED_RESULT_ATTRS = (
     "fallback_lines",
     "reconcile_metrics",
     "report",
+    "review_lines",
+    "review_reasons",
     "retry_count",
     "total_chunks",
     "total_reconciled",

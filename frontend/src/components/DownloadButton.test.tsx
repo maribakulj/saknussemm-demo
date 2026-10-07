@@ -18,6 +18,19 @@ const stats: JobStats = {
 }
 
 describe('DownloadButton', () => {
+  it('labels flagged output as a candidate even when some files were withheld', () => {
+    render(
+      <DownloadButton
+        jobId="j1"
+        stats={{ ...stats, review_lines: 2, review_reasons: { digits_changed: 2 } }}
+        status="completed_with_withheld_files"
+      />,
+    )
+    expect(screen.getByRole('button', { name: /XML candidat pour relecture/i })).toBeInTheDocument()
+    expect(screen.getByText(/2 ligne\(s\).*relecture/i)).toBeInTheDocument()
+    expect(screen.getByText(/digits_changed/)).toBeInTheDocument()
+  })
+
   it('renders the stats grid when stats are present', () => {
     render(<DownloadButton jobId="j1" stats={stats} />)
     expect(screen.getByText('12')).toBeInTheDocument()

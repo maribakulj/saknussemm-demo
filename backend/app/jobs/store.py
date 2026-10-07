@@ -32,6 +32,7 @@ from app.schemas import (
     Provider,
     SSEEvent,
 )
+from app.schemas.job import TERMINAL_SUCCESS_STATES
 
 logger = logging.getLogger(__name__)
 
@@ -40,14 +41,7 @@ _DEFAULT_TTL_SECONDS = 3600  # 1 hour
 _MAX_COMPLETED_JOBS = 200
 
 #: Every state after which a job never changes again (eviction-eligible).
-_TERMINAL_STATES = frozenset(
-    {
-        JobStatus.COMPLETED,
-        JobStatus.COMPLETED_WITH_FALLBACKS,
-        JobStatus.FAILED,
-        JobStatus.CANCELLED,
-    }
-)
+_TERMINAL_STATES = TERMINAL_SUCCESS_STATES | {JobStatus.FAILED, JobStatus.CANCELLED}
 
 
 class JobStore:
@@ -137,6 +131,8 @@ class JobStore:
         chunks_total: int | None = None,
         retries: int | None = None,
         fallbacks: int | None = None,
+        review_lines: int | None = None,
+        review_reasons: dict[str, int] | None = None,
         duration_seconds: float | None = None,
         error: str | None = None,
         reviews: dict[str, dict] | None = None,
@@ -176,6 +172,10 @@ class JobStore:
                 job.retries = retries
             if fallbacks is not None:
                 job.fallbacks = fallbacks
+            if review_lines is not None:
+                job.review_lines = review_lines
+            if review_reasons is not None:
+                job.review_reasons = review_reasons
             if duration_seconds is not None:
                 job.duration_seconds = duration_seconds
             if error is not None:
@@ -422,6 +422,9 @@ class JobStore:
                 "duration_seconds": job.duration_seconds or 0.0,
                 "status": job.status.value,
                 "fallbacks": job.fallbacks,
+                "review_lines": job.review_lines,
+                "review_reasons": job.review_reasons,
+                "withheld_files": job.withheld_files,
             },
         )
 

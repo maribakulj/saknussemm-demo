@@ -68,6 +68,7 @@ export default function App() {
   const isDone =
     status === 'completed' ||
     status === 'completed_with_fallbacks' ||
+    status === 'completed_with_review_required' ||
     status === 'completed_with_withheld_files'
   const isFailed = status === 'failed'
   const isCancelled = status === 'cancelled'
@@ -411,7 +412,7 @@ export default function App() {
               <span className="font-mono text-amber-500 text-xs">05</span>
               Download
             </h2>
-            <DownloadButton jobId={jobId} stats={displayStats} />
+            <DownloadButton jobId={jobId} stats={displayStats} status={status} />
           </section>
         )}
 

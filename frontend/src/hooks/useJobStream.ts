@@ -40,6 +40,7 @@ function isTerminalStatus(s: JobStatus | null): boolean {
   return (
     s === 'completed' ||
     s === 'completed_with_fallbacks' ||
+    s === 'completed_with_review_required' ||
     s === 'completed_with_withheld_files' ||
     s === 'failed' ||
     s === 'cancelled'
@@ -276,6 +277,7 @@ export function useJobStream(jobId: string | null): UseJobStreamReturn {
           // success (some lines kept their OCR text); adopt its status.
           const terminal = ev.status ?? 'completed'
           setStatus(terminal)
+          statusRef.current = terminal
           // Audit P1 — a synthetic terminal event (emitted when a client
           // subscribes AFTER the job already finished: fast job, reload,
           // late reconnect) carries only a partial payload. Default every
@@ -298,6 +300,9 @@ export function useJobStream(jobId: string | null): UseJobStreamReturn {
             lines_modified: linesModified,
             hyphen_pairs: hyphenPairs,
             duration_seconds: duration,
+            review_lines: ev.review_lines ?? 0,
+            review_reasons: ev.review_reasons ?? {},
+            withheld_files: ev.withheld_files ?? {},
           })
           setLogs((l) =>
             appendLog(
@@ -322,7 +327,18 @@ export function useJobStream(jobId: string | null): UseJobStreamReturn {
               ),
             )
           }
-          if (terminal === 'completed_with_fallbacks') {
+          if ((ev.review_lines ?? 0) > 0 || terminal === 'completed_with_review_required') {
+            setLogs((l) =>
+              appendLog(
+                l,
+                makeLog(
+                  'warning',
+                  `${ev.review_lines ?? '?'} ligne(s) nécessitent une relecture. Le XML téléchargé reste un candidat.`,
+                ),
+              ),
+            )
+          }
+          if ((ev.fallbacks ?? 0) > 0 || terminal === 'completed_with_fallbacks') {
             const n = ev.fallbacks ?? 0
             setLogs((l) =>
               appendLog(
@@ -478,12 +494,21 @@ export function useJobStream(jobId: string | null): UseJobStreamReturn {
         if (snap !== undefined) {
           transportErrorLogged = false
           setStatus(snap.status)
-          if (snap.status === 'completed' || snap.status === 'completed_with_fallbacks') {
+          statusRef.current = snap.status
+          if (
+            snap.status === 'completed' ||
+            snap.status === 'completed_with_fallbacks' ||
+            snap.status === 'completed_with_review_required' ||
+            snap.status === 'completed_with_withheld_files'
+          ) {
             const stats: JobStats = {
               lines_modified: snap.lines_modified,
               // The snapshot has no hyphen count; reuse the last streamed value.
               hyphen_pairs: progressRef.current.hyphen_pairs_reconciled,
               duration_seconds: snap.duration_seconds ?? 0,
+              review_lines: snap.review_lines ?? 0,
+              review_reasons: snap.review_reasons ?? {},
+              withheld_files: snap.withheld_files ?? {},
             }
             setFinalStats(stats)
             setProgress((p) => ({
@@ -499,7 +524,29 @@ export function useJobStream(jobId: string | null): UseJobStreamReturn {
                 ),
               ),
             )
-            if (snap.status === 'completed_with_fallbacks') {
+            if ((snap.review_lines ?? 0) > 0 || snap.status === 'completed_with_review_required') {
+              setLogs((l) =>
+                appendLog(
+                  l,
+                  makeLog(
+                    'warning',
+                    `${snap.review_lines ?? '?'} ligne(s) nécessitent une relecture. Le XML téléchargé reste un candidat.`,
+                  ),
+                ),
+              )
+            }
+            if (snap.status === 'completed_with_withheld_files') {
+              setLogs((l) =>
+                appendLog(
+                  l,
+                  makeLog(
+                    'warning',
+                    'Résultat incomplet : des fichiers ont été retenus par le moteur et manquent au téléchargement.',
+                  ),
+                ),
+              )
+            }
+            if ((snap.fallbacks ?? 0) > 0 || snap.status === 'completed_with_fallbacks') {
               setLogs((l) =>
                 appendLog(
                   l,

@@ -39,6 +39,8 @@ class JobStore(Protocol):
         chunks_total: int | None = None,
         retries: int | None = None,
         fallbacks: int | None = None,
+        review_lines: int | None = None,
+        review_reasons: dict[str, int] | None = None,
         duration_seconds: float | None = None,
         error: str | None = None,
         images: dict[str, str] | None = None,

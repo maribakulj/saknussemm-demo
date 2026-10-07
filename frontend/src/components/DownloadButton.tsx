@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { downloadJob } from '../api/client'
-import type { JobStats } from '../types'
+import type { JobStats, JobStatus } from '../types'
 
 interface DownloadButtonProps {
   jobId: string
   stats: JobStats | null
+  status?: JobStatus | null
 }
 
-export function DownloadButton({ jobId, stats }: DownloadButtonProps) {
+export function DownloadButton({ jobId, stats, status }: DownloadButtonProps) {
+  const needsReview = (stats?.review_lines ?? 0) > 0 || status === 'completed_with_review_required'
   // Plan V2.4 — the download is a fetch (token in a header, blob to the
   // browser): it can fail like any request, so surface that instead of
   // a dead click.
@@ -28,7 +30,29 @@ export function DownloadButton({ jobId, stats }: DownloadButtonProps) {
   }
 
   return (
-    <div className="bg-slate-800 border border-green-800/50 rounded-lg p-4 space-y-3">
+    <div
+      className={`bg-slate-800 border ${needsReview ? 'border-amber-600' : 'border-green-800/50'} rounded-lg p-4 space-y-3`}
+    >
+      {needsReview && (
+        <div className="text-sm text-amber-200 space-y-2">
+          <p>
+            {stats?.review_lines ?? '?'} ligne(s) nécessitent une relecture dans la visionneuse.
+          </p>
+          <p>Les jugements enregistrés ne modifient pas le XML téléchargé.</p>
+          <ul className="font-mono text-xs">
+            {Object.entries(stats?.review_reasons ?? {}).map(([code, count]) => (
+              <li key={code}>
+                {code} : {count}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {status === 'completed_with_withheld_files' && (
+        <p className="text-sm text-orange-300">
+          Résultat incomplet : des fichiers manquent au téléchargement.
+        </p>
+      )}
       {/* Stats */}
       {stats && (
         <div className="grid grid-cols-3 gap-2 font-mono text-xs">
@@ -79,7 +103,7 @@ export function DownloadButton({ jobId, stats }: DownloadButtonProps) {
             d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
           />
         </svg>
-        Download corrected XML
+        {needsReview ? 'XML candidat pour relecture' : 'Download corrected XML'}
       </button>
     </div>
   )

@@ -707,6 +707,7 @@
           "running",
           "completed",
           "completed_with_fallbacks",
+          "completed_with_review_required",
           "completed_with_withheld_files",
           "failed",
           "cancel_requested",
@@ -748,6 +749,25 @@
             "type": "integer",
             "title": "Fallbacks",
             "default": 0
+          },
+          "review_lines": {
+            "type": "integer",
+            "title": "Review Lines",
+            "default": 0
+          },
+          "review_reasons": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Review Reasons"
+          },
+          "withheld_files": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Withheld Files"
           },
           "duration_seconds": {
             "anyOf": [

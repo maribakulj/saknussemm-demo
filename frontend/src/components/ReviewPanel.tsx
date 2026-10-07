@@ -109,6 +109,23 @@ export function ReviewPanel({
         </button>
       </header>
 
+      {line.verdict === 'review_required' && (
+        <div className="text-xs text-amber-200 space-y-1">
+          <p>Relecture requise</p>
+          <ul>
+            {(line.review_reasons ?? []).map((reason, index) => (
+              <li key={`${reason.code}-${index}`}>
+                {reason.code}
+                {reason.detail ? ` — ${reason.detail}` : ''}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <p className="text-xs text-slate-400">
+        Les jugements enregistrés ne modifient pas le XML téléchargé.
+      </p>
+
       {iiifService && (
         <figure className="m-0">
           <img

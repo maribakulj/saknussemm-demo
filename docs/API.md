@@ -43,12 +43,29 @@ scoped to one job and one purpose:
 | `GET /api/jobs/{id}/diff` | OCR vs corrected, per page/line |
 | `GET /api/jobs/{id}/layout` | Blocks/lines with ALTO coordinates + signed `image_url`s |
 | `GET /api/jobs/{id}/images/{name}` | Source scan image (auth via `?sig=` or header) |
+| `GET /api/jobs/{id}/reviews` | Recorded human judgements, keyed by page and line |
+| `PUT /api/jobs/{id}/reviews` | Record `accepted`, `refused` or `transcribed` judgements; does not rewrite XML |
 | `GET /health`, `/health/live`, `/health/ready` | Probes — `ready` includes storage, frontend (when promised) and load gauges |
 
 Job state machine: `queued → started → running → completed |
-completed_with_fallbacks | failed`, plus `cancel_requested → cancelled`.
+completed_with_fallbacks | completed_with_review_required |
+completed_with_withheld_files | failed`, plus `cancel_requested → cancelled`.
 Terminal jobs are evicted after a TTL (default 1 h); artefacts live
 under `{JOB_STORAGE_DIR}/{job_id}/` (`input/`, `output/`, `images/`).
+
+The status snapshot and terminal SSE payload carry `review_lines`,
+`review_reasons` (counts by code), and `withheld_files` (source filename to
+explanation). Withheld files take precedence over review referrals, which
+take precedence over fallbacks; all counters remain available independently.
+The layout includes every line's structured `review_reasons` for the review
+queue. A referral retains the engine's proposed correction in the XML.
+
+Downloads remain available for human review. When `review_lines > 0`, their
+filenames contain `candidate`, and the response carries
+`X-Saknussemm-Review-Lines`. Recorded human judgements never change these
+bytes or remove this label: a refusal does not restore the source, and a
+transcription does not replace the XML text. This demo has no approved-output
+publication step.
 
 ## SSE events
 

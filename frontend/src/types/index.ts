@@ -155,6 +155,9 @@ export interface SSECompleted {
   // the number of lines that kept their OCR source text.
   status?: JobStatus
   fallbacks?: number
+  review_lines?: number
+  review_reasons?: Record<string, number>
+  withheld_files?: Record<string, string>
 }
 export interface SSEFailed {
   event: 'failed'
@@ -223,6 +226,8 @@ export interface LayoutLine {
   proposed_text: string | null
   /** A proposal was on the table and the engine declined it — the case worth reading. */
   proposal_declined: boolean
+  /** Separate from rejection: this candidate still needs a reader. */
+  review_reasons?: DecisionReason[]
 }
 
 /** How a reader graded the engine on one line. */
@@ -298,6 +303,9 @@ export interface JobStats {
   lines_modified: number
   hyphen_pairs: number
   duration_seconds: number
+  review_lines?: number
+  review_reasons?: Record<string, number>
+  withheld_files?: Record<string, string>
 }
 
 // ---------------------------------------------------------------------------

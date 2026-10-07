@@ -272,6 +272,9 @@ class TestTraceFallback:
             # of being collateral in a whole-chunk hyphen fallback.
             accepted_reasons = (
                 "drift_guard",
+                # A hyphen unit can now fall back without exhausting the
+                # otherwise valid chunk. Its source text stays protected.
+                "pair_drift_fallback",
                 "all_attempts_exhausted",
                 "too_different_from_source",
                 "closer_to_",

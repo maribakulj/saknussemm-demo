@@ -2,10 +2,10 @@
 // Verdict palette — what the engine decided, and why
 // ---------------------------------------------------------------------------
 //
-// Three families, because a reviewer scans for three different things and
-// should not have to read a legend to tell them apart:
+// Separate review referrals from corrections that survived the guards:
 //
 //   kept      the correction survived every guard
+//   review    the proposed correction requires a reader before acceptance
 //   refused   something was proposed and a guard declined it — the cases
 //             worth a human eye, since each is either a caught hallucination
 //             or a good correction thrown away
@@ -15,7 +15,7 @@
 // marks what was struck out. Amber sits between them for a line the engine
 // never got an answer for.
 
-export type VerdictFamily = 'kept' | 'refused' | 'silent'
+export type VerdictFamily = 'kept' | 'review' | 'refused' | 'silent'
 
 const REFUSAL_CODES = new Set([
   'too_different_from_source',
@@ -33,12 +33,14 @@ const REFUSAL_CODES = new Set([
 ])
 
 export function verdictFamily(line: { verdict: string | null; modified: boolean }): VerdictFamily {
+  if (line.verdict === 'review_required') return 'review'
   if (line.verdict && REFUSAL_CODES.has(line.verdict)) return 'refused'
   if (line.verdict === 'all_attempts_exhausted') return 'silent'
   return line.modified ? 'kept' : 'silent'
 }
 
 export const FAMILY = {
+  review: { stroke: '#b45309', fill: 'rgba(245,158,11,0.22)', label: 'À relire' },
   kept: { stroke: '#1d4ed8', fill: 'rgba(29,78,216,0.18)', label: 'Retenue' },
   refused: { stroke: '#b91c1c', fill: 'rgba(185,28,28,0.20)', label: 'Refusée' },
   silent: { stroke: '#a1a1aa', fill: 'rgba(161,161,170,0.10)', label: 'Sans objet' },

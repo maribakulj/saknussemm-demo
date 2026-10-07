@@ -385,6 +385,7 @@ export interface components {
       | 'running'
       | 'completed'
       | 'completed_with_fallbacks'
+      | 'completed_with_review_required'
       | 'completed_with_withheld_files'
       | 'failed'
       | 'cancel_requested'
@@ -419,6 +420,19 @@ export interface components {
        * @default 0
        */
       fallbacks: number
+      /**
+       * Review Lines
+       * @default 0
+       */
+      review_lines: number
+      /** Review Reasons */
+      review_reasons?: {
+        [key: string]: number
+      }
+      /** Withheld Files */
+      withheld_files?: {
+        [key: string]: string
+      }
       /** Duration Seconds */
       duration_seconds?: number | null
       /** Error */

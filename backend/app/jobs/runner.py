@@ -261,7 +261,8 @@ class JobRunner:
             # download the complete, committed set.
             self._commit_outputs(output_writer)
 
-            # COMPLETED strictly means "zero fallback LINES". The count is
+            # COMPLETED means no withheld file, review referral or fallback.
+            # The fallback count is
             # per line (manifest statuses), not per chunk: a rejected
             # 20-line chunk is 20 uncorrected lines, and a guard-rejected
             # line counts even when no chunk ever failed — the UI renders
@@ -276,6 +277,8 @@ class JobRunner:
             # made here instead.
             if result.undeliverable_files:
                 terminal = JobStatus.COMPLETED_WITH_WITHHELD_FILES
+            elif result.review_lines > 0:
+                terminal = JobStatus.COMPLETED_WITH_REVIEW_REQUIRED
             elif result.fallback_lines > 0:
                 terminal = JobStatus.COMPLETED_WITH_FALLBACKS
             else:
@@ -316,6 +319,9 @@ class JobRunner:
                     # uncorrected lines" without an extra round-trip.
                     "status": terminal.value,
                     "fallbacks": result.fallback_lines,
+                    "review_lines": result.review_lines,
+                    "review_reasons": result.review_reasons,
+                    "withheld_files": result.undeliverable_files,
                 },
             )
 
@@ -589,6 +595,8 @@ class JobRunner:
             job_id,
             retries=result.retry_count,
             fallbacks=result.fallback_lines,
+            review_lines=result.review_lines,
+            review_reasons=result.review_reasons,
             # §9 unification — the run's CorrectionReport is the job's trace
             # artefact (served by /trace, dumped as trace.json). run_id ==
             # job_id (fed above), so the report self-correlates with the API.

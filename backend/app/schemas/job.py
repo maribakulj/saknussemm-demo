@@ -27,8 +27,11 @@ class JobStatus(str, Enum):
     #: The corrected files are valid and downloadable, but the run is
     #: explicitly DEGRADED: consumers must be able to distinguish "every
     #: line went through the provider" from "some lines silently kept
-    #: their OCR text". COMPLETED now strictly means zero fallbacks.
+    #: their OCR text". COMPLETED excludes both fallbacks and review referrals.
     COMPLETED_WITH_FALLBACKS = "completed_with_fallbacks"
+    #: The engine delivered proposed corrections requiring human review.
+    #: Downloading is useful for that review; it is not an approval of the text.
+    COMPLETED_WITH_REVIEW_REQUIRED = "completed_with_review_required"
     #: Terminal success where one or more SOURCE FILES are missing from the
     #: output: the engine rewrote them, re-read them, found the artefact did
     #: not carry what the run decided, and withheld them rather than hand
@@ -61,6 +64,7 @@ TERMINAL_SUCCESS_STATES = frozenset(
     {
         JobStatus.COMPLETED,
         JobStatus.COMPLETED_WITH_FALLBACKS,
+        JobStatus.COMPLETED_WITH_REVIEW_REQUIRED,
         JobStatus.COMPLETED_WITH_WITHHELD_FILES,
     }
 )
@@ -104,6 +108,9 @@ class JobManifest(BaseModel):
     #: guard rejection or duplicate revert) — the UI renders this as
     #: "N line(s) fell back", so it must never be a chunk count.
     fallbacks: int = 0
+    #: Distinct from fallbacks: these lines retain their proposed correction.
+    review_lines: int = 0
+    review_reasons: dict[str, int] = Field(default_factory=dict)
     duration_seconds: float | None = None
     error: str | None = None
     images: dict[str, str] = Field(default_factory=dict)

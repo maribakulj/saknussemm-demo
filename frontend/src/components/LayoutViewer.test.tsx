@@ -1,8 +1,13 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { LayoutBlock, LayoutData, LayoutLine, LayoutPage } from '../types'
 import { LayoutViewer } from './LayoutViewer'
+
+vi.mock('../api/client', () => ({
+  fetchReviews: vi.fn(async () => ({ reviews: [] })),
+  putReviews: vi.fn(async (_job, reviews) => reviews),
+}))
 
 // ---------------------------------------------------------------------------
 // Builders
@@ -52,6 +57,36 @@ function data(pages: LayoutPage[]): LayoutData {
 // ---------------------------------------------------------------------------
 
 describe('LayoutViewer', () => {
+  it('opens a flagged line on another page and keeps it flagged after a human judgement', async () => {
+    const flagged = line({
+      verdict: 'review_required',
+      modified: true,
+      review_reasons: [{ code: 'digits_changed', detail: '1789 added' }],
+    })
+    render(
+      <LayoutViewer
+        jobId="j1"
+        data={data([
+          page([block([line()])]),
+          page([block([flagged])], { page_id: 'p2', page_index: 1 }),
+        ])}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Page 2.*L1/ }))
+    expect(screen.getByRole('combobox')).toHaveValue('1')
+    expect(
+      screen.getByRole('complementary', { name: /Jugement sur la ligne L1/ }),
+    ).toHaveTextContent('digits_changed — 1789 added')
+    fireEvent.click(screen.getByRole('button', { name: /Le moteur a eu raison/ }))
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: /Page 2.*L1.*jugement enregistré/ }),
+      ).toBeInTheDocument(),
+    )
+    expect(screen.getByText(/1 ligne\(s\) signalée\(s\) pour relecture/)).toBeInTheDocument()
+    expect(screen.getAllByText(/ne modifient pas.*XML/).length).toBeGreaterThan(0)
+  })
+
   it('shows the empty message when there are no pages', () => {
     render(<LayoutViewer data={data([])} />)
     expect(screen.getByText(/aucune mise en page/i)).toBeInTheDocument()

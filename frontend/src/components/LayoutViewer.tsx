@@ -272,10 +272,10 @@ interface LayoutViewerProps {
 export function LayoutViewer({ data, jobId }: LayoutViewerProps) {
   const [pageIdx, setPageIdx] = useState(0)
   const [overlayOpacity, setOverlayOpacity] = useState(0.85)
-  // All three families on by default: a reviewer opening the page should see
+  // All families on by default: a reviewer opening the page should see
   // what the run did before deciding what to hunt for.
   const [active, setActive] = useState<ReadonlySet<VerdictFamily>>(
-    new Set<VerdictFamily>(['kept', 'refused', 'silent']),
+    new Set<VerdictFamily>(['kept', 'review', 'refused', 'silent']),
   )
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [reviews, setReviews] = useState<Map<LineKey, LineReview>>(new Map())
@@ -350,6 +350,13 @@ export function LayoutViewer({ data, jobId }: LayoutViewerProps) {
     ? (currentPage?.blocks.flatMap((b) => b.lines).find((l) => l.line_id === selectedId) ?? null)
     : null
   const hasImage = !!currentPage.image_url
+  const reviewQueue = data.pages.flatMap((p, index) =>
+    p.blocks.flatMap((b) =>
+      b.lines
+        .filter((line) => line.verdict === 'review_required')
+        .map((line) => ({ page: p, pageIdx: index, line })),
+    ),
+  )
 
   return (
     <div className="rounded-lg border border-slate-700/60 bg-slate-800/40 overflow-hidden">
@@ -382,7 +389,7 @@ export function LayoutViewer({ data, jobId }: LayoutViewerProps) {
               neighbour only reads as wrong NEXT TO that neighbour, so the
               context has to stay on the page. */}
           <div className="flex items-center gap-1.5">
-            {(['kept', 'refused', 'silent'] as const).map((family) => {
+            {(['kept', 'review', 'refused', 'silent'] as const).map((family) => {
               const on = active.has(family)
               return (
                 <button
@@ -436,7 +443,10 @@ export function LayoutViewer({ data, jobId }: LayoutViewerProps) {
           {data.pages.length > 1 && (
             <select
               value={pageIdx}
-              onChange={(e) => setPageIdx(Number(e.target.value))}
+              onChange={(e) => {
+                setPageIdx(Number(e.target.value))
+                setSelectedId(null)
+              }}
               className="font-mono text-xs bg-slate-700 border border-slate-600 text-slate-200
                          rounded px-2 py-1 focus:outline-none focus:border-amber-500"
             >
@@ -450,6 +460,38 @@ export function LayoutViewer({ data, jobId }: LayoutViewerProps) {
         </div>
       </div>
 
+      {reviewQueue.length > 0 && (
+        <section
+          aria-label="Lignes à relire"
+          className="px-4 py-3 border-b border-amber-800 text-sm text-amber-200"
+        >
+          <p>{reviewQueue.length} ligne(s) signalée(s) pour relecture</p>
+          <p className="text-xs mt-1">
+            Les jugements enregistrés ne modifient pas le XML téléchargé.
+          </p>
+          <ul className="max-h-40 overflow-auto mt-2 space-y-1">
+            {reviewQueue.map(({ page, pageIdx: index, line }) => (
+              <li key={lineKey(page.page_id, line.line_id)}>
+                <button
+                  type="button"
+                  className="text-left underline underline-offset-2"
+                  onClick={() => {
+                    setPageIdx(index)
+                    setSelectedId(line.line_id)
+                  }}
+                >
+                  Page {index + 1} — {line.line_id}
+                  {line.review_reasons?.length
+                    ? ` : ${line.review_reasons.map((r) => r.code).join(', ')}`
+                    : ''}
+                  {reviews.has(lineKey(page.page_id, line.line_id)) ? ' — jugement enregistré' : ''}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {/* Column labels */}
       <div className="grid grid-cols-2 border-b border-slate-700/40 bg-slate-800/60">
         <div
@@ -459,7 +501,8 @@ export function LayoutViewer({ data, jobId }: LayoutViewerProps) {
           OCR source{hasImage ? ' (scan)' : ''}
         </div>
         <div className="px-3 py-1.5 font-mono text-[10px] text-slate-500 uppercase tracking-wider">
-          Corrigé{hasImage ? ' (scan)' : ''}
+          {reviewQueue.length ? 'Candidat' : 'Corrigé'}
+          {hasImage ? ' (scan)' : ''}
         </div>
       </div>
 
