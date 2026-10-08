@@ -15,6 +15,26 @@ structure-safe post-OCR correction library for ALTO and PAGE XML.
 Upload an ALTO or PAGE file, watch the engine correct it line by line, and
 read the report it produces. That is all this repository is for.
 
+Some delivered corrections are marked `review_required`: the engine retains
+the proposed text and asks a person to check it against the scan. These jobs
+finish as **completed with review required**, expose the affected lines and
+reasons, and download as **candidate XML for review**. The existing review
+panel records acceptance, refusal or a transcription; those judgements do
+not edit the downloaded XML or certify it as approved. Files withheld by the
+engine remain explicitly listed as missing from the output.
+
+The IIIF service is assigned separately to each page of the current job.
+Before displaying line crops, the reader must confirm that this is the right
+scan and that the XML coordinates are its pixels, with the same origin and
+dimensions. No conversion from ALTO `mm10`, crop or rotation is inferred.
+
+Reviews are temporary in-memory annotations. Saving, exporting or interacting
+with the review view renews their one-hour idle timeout; passive polling does
+not. A restart or the job-cap eviction can still remove them. **Export saved
+judgements as JSON** to retain them: the export includes the source digests,
+source/candidate texts and engine report where available. It does not apply
+judgements to XML or publish an approved artefact.
+
 ## What this is not
 
 It is **not** the deliverable, and it is not where the interesting
@@ -46,13 +66,13 @@ in the library — or out of scope.
 ## Running it
 
 ```bash
-# The library is not published yet, so it installs from git. The
+# The library is not published yet. This reviewed commit is shared by
+# CI and both Dockerfile defaults (saknussemm PR #178). The
 # [vision] extra is Pillow, and this backend needs it: without it every
 # vision job fails at the first crop.
-pip install 'saknussemm[vision] @ git+https://github.com/maribakulj/saknussemm@main'
-# Refreshing an environment that already has it: add --force-reinstall
-# --no-deps. `@main` moves, the version number does not, and pip can
-# consider the old copy satisfactory.
+pip install 'saknussemm[vision] @ git+https://github.com/maribakulj/saknussemm@8a0a00de99531ab375b62a1737de2fb6d70c70b0'
+# After changing this commit in an existing environment, add
+# --force-reinstall --no-deps: the version number may stay unchanged.
 pip install -r backend/requirements.txt -r backend/requirements-dev.txt
 cd backend && uvicorn app.main:app --reload --port 8000
 

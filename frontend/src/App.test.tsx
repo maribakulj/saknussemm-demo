@@ -20,6 +20,8 @@ vi.mock('./api/client', () => ({
   // whole component tree fails to render and every case here reports a
   // mock error instead of what it was testing.
   fetchReviews: vi.fn().mockResolvedValue({ reviews: [] }),
+  touchReviewActivity: vi.fn().mockResolvedValue(undefined),
+  downloadReviews: vi.fn().mockResolvedValue(undefined),
   putReviews: vi.fn().mockResolvedValue([]),
   fetchTrace: vi.fn(),
   listModels: vi.fn(),
@@ -241,6 +243,26 @@ describe('App — happy path', () => {
 })
 
 describe('App — degraded and failure paths', () => {
+  it('opens the results and candidate download when the engine requires review', async () => {
+    const { container } = render(<App />)
+    const es = await startJob(container)
+    act(() => {
+      es.dispatch(
+        'completed',
+        completePayload({
+          status: 'completed_with_review_required',
+          review_lines: 2,
+          review_reasons: { digits_changed: 2 },
+        }),
+      )
+    })
+    await screen.findByText('TERMINÉ — RELECTURE REQUISE')
+    await screen.findByRole('button', { name: /XML candidat pour relecture/i })
+    expect(screen.getByRole('button', { name: /new correction/i })).toBeInTheDocument()
+    await screen.findByText('Résultats de correction')
+    expect(mocked.fetchLayout).toHaveBeenCalledWith('job-1')
+  })
+
   it('surfaces createJob errors under the play button', async () => {
     mocked.createJob.mockRejectedValue(new Error('quota exceeded'))
     const { container } = render(<App />)

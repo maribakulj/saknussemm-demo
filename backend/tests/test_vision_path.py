@@ -209,12 +209,13 @@ def test_the_vision_guard_config_is_looser_than_the_text_one() -> None:
 
     vision = GuardConfig.vision()
     assert vision.min_source_similarity < DEFAULT_GUARD_CONFIG.min_source_similarity
-    # Everything else must match: this is one calibrated dial, not a second
-    # policy that could drift away from the text one.
+    # The lower resemblance threshold is coupled to a page-wide attachment
+    # check, so the correction cannot borrow another block's line unnoticed.
+    assert vision.attachment_scope == "page"
     text_dump = DEFAULT_GUARD_CONFIG.model_dump()
     vision_dump = vision.model_dump()
     differing = {key for key in text_dump if text_dump[key] != vision_dump[key]}
-    assert differing == {"min_source_similarity"}, differing
+    assert differing == {"min_source_similarity", "attachment_scope"}, differing
 
 
 class _RecordingMultimodalProvider:

@@ -21,6 +21,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 from saknussemm.formats.alto.parser import build_document_manifest
 
 from app.jobs.runner import JobRunner
@@ -92,6 +93,18 @@ async def test_the_job_says_which_file_and_why(tmp_path) -> None:
     assert job is not None
     assert SAMPLE_XML.name in job.withheld_files
     assert job.withheld_files == (job.report.undeliverable_files if job.report else {})
+
+    # Polling and an idempotent cancel return the same incomplete-set signal.
+    from app.main import create_app
+
+    with TestClient(create_app()) as client:
+        client.app.state.job_store = store
+        for response in (
+            client.get(f"/api/jobs/{job_id}"),
+            client.post(f"/api/jobs/{job_id}/cancel"),
+        ):
+            assert response.json()["status"] == "completed_with_withheld_files"
+            assert response.json()["withheld_files"] == job.withheld_files
 
 
 @pytest.mark.asyncio

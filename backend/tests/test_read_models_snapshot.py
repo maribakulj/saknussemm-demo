@@ -68,6 +68,7 @@ _LAYOUT_LINE_KEYS = {
     "verdict",
     "verdict_detail",
     "proposed_text",
+    "review_reasons",
     "proposal_declined",
 }
 

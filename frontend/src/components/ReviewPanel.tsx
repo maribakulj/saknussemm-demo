@@ -26,7 +26,8 @@ interface ReviewPanelProps {
   /** The reader's existing judgement on this line, if any. */
   existing: LineReview | null
   /**
-   * IIIF Image API service base for this page, when the reader has one.
+   * IIIF Image API service base for this page, after the caller verified
+   * that the line coordinates are pixels in this image's reference frame.
    * With it, the line is shown at the scan's NATIVE resolution and nothing is
    * stored — the alternative is judging a word from a downscaled preview,
    * which on a newspaper line is roughly 13 pixels tall.
@@ -108,6 +109,23 @@ export function ReviewPanel({
           fermer
         </button>
       </header>
+
+      {line.verdict === 'review_required' && (
+        <div className="text-xs text-amber-200 space-y-1">
+          <p>Relecture requise</p>
+          <ul>
+            {(line.review_reasons ?? []).map((reason, index) => (
+              <li key={`${reason.code}-${index}`}>
+                {reason.code}
+                {reason.detail ? ` — ${reason.detail}` : ''}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <p className="text-xs text-slate-400">
+        Les jugements enregistrés ne modifient pas le XML téléchargé.
+      </p>
 
       {iiifService && (
         <figure className="m-0">

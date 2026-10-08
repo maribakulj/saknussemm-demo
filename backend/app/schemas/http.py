@@ -74,6 +74,9 @@ class JobStatusResponse(BaseModel):
     chunks_total: int = 0
     retries: int = 0
     fallbacks: int = 0
+    review_lines: int = 0
+    review_reasons: dict[str, int] = Field(default_factory=dict)
+    withheld_files: dict[str, str] = Field(default_factory=dict)
     duration_seconds: float | None = None
     error: str | None = None
 

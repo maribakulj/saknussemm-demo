@@ -315,6 +315,46 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/jobs/{job_id}/reviews/activity': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Review Activity
+     * @description A reader interacted with the review UI; renew its idle timeout.
+     */
+    post: operations['review_activity_api_jobs__job_id__reviews_activity_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/jobs/{job_id}/reviews/export': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Export Reviews
+     * @description Export saved annotations and their source/candidate evidence.
+     */
+    get: operations['export_reviews_api_jobs__job_id__reviews_export_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
 export type webhooks = Record<string, never>
 export interface components {
@@ -385,6 +425,7 @@ export interface components {
       | 'running'
       | 'completed'
       | 'completed_with_fallbacks'
+      | 'completed_with_review_required'
       | 'completed_with_withheld_files'
       | 'failed'
       | 'cancel_requested'
@@ -419,6 +460,19 @@ export interface components {
        * @default 0
        */
       fallbacks: number
+      /**
+       * Review Lines
+       * @default 0
+       */
+      review_lines: number
+      /** Review Reasons */
+      review_reasons?: {
+        [key: string]: number
+      }
+      /** Withheld Files */
+      withheld_files?: {
+        [key: string]: string
+      }
       /** Duration Seconds */
       duration_seconds?: number | null
       /** Error */
@@ -955,6 +1009,66 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['ReviewsResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  review_activity_api_jobs__job_id__reviews_activity_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        job_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  export_reviews_api_jobs__job_id__reviews_export_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        job_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
         }
       }
       /** @description Validation Error */

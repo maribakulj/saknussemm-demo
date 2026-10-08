@@ -66,8 +66,8 @@ def _sabotage(line_id: str, text: str) -> str:
     """Deliberately invariant-violating corrections.
 
     If the pipeline's guards are real, none of these must reach the
-    output XML; the lines must fall back to OCR and the job must end
-    ``completed_with_fallbacks``.
+    output XML; the lines must fall back to OCR and the job must report
+    their fallbacks even if another correction requires human review.
     """
     if line_id == "TL4":
         # Fusion: PART1 swallows PART2's fragment — ends with the FULL

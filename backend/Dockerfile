@@ -22,7 +22,8 @@ RUN pip install --no-cache-dir --require-hashes -r /app/backend/requirements-loc
 # is how a months-old engine ended up serving a current backend. Pass
 # `--build-arg SAKNUSSEMM_REF=<commit>` for a reproducible (and
 # cache-busting) build; `docker compose build --no-cache` also works.
-ARG SAKNUSSEMM_REF=main
+# Reviewed library integration: saknussemm PR #178.
+ARG SAKNUSSEMM_REF=8a0a00de99531ab375b62a1737de2fb6d70c70b0
 RUN apt-get update && apt-get install -y --no-install-recommends git \
     && pip install --no-cache-dir --no-deps \
        "saknussemm @ git+https://github.com/maribakulj/saknussemm@${SAKNUSSEMM_REF}" \

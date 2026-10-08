@@ -148,3 +148,92 @@ def test_the_key_separator_cannot_occur_in_an_id() -> None:
         "two different (page, line) pairs collapsed to one key — a space "
         "separator would do exactly this"
     )
+
+
+@pytest.mark.parametrize("activity", ["save", "activity", "export"])
+def test_review_activity_renews_retention_but_an_idle_job_still_expires(
+    client: TestClient, job: str, monkeypatch, activity: str
+) -> None:
+    from app.jobs import store as store_module
+    from app.schemas import JobStatus
+
+    now = [1000.0]
+    monkeypatch.setattr(store_module.time, "monotonic", lambda: now[0])
+    store = client.app.state.job_store
+    store.update_job(job, status=JobStatus.COMPLETED_WITH_REVIEW_REQUIRED)
+    now[0] += 3500
+    if activity == "save":
+        response = _put(client, job, [{"page_id": "P", "line_id": "L", "verdict": "accepted"}])
+    elif activity == "activity":
+        response = client.post(f"/api/jobs/{job}/reviews/activity")
+    else:
+        suffix = "/export" if activity == "export" else ""
+        response = client.get(f"/api/jobs/{job}/reviews{suffix}")
+    assert response.status_code in (200, 204)
+    now[0] += 200
+    assert store.sweep() == 0
+    assert store.get_job(job) is not None
+    now[0] += 3399
+    assert store.sweep() == 0
+    now[0] += 1
+    assert store.sweep() == 1
+    assert store.get_job(job) is None
+
+
+def test_export_keeps_judgements_separate_from_approved_xml(client: TestClient, job: str) -> None:
+    from app.schemas import JobStatus
+
+    client.app.state.job_store.update_job(job, status=JobStatus.COMPLETED_WITH_REVIEW_REQUIRED)
+    _put(client, job, [{"page_id": "P", "line_id": "L", "verdict": "refused"}])
+    response = client.get(f"/api/jobs/{job}/reviews/export")
+    assert response.status_code == 200
+    assert "attachment" in response.headers["content-disposition"]
+    assert "reviews.json" in response.headers["content-disposition"]
+    payload = response.json()
+    assert payload["export_version"] == 1
+    assert payload["job_id"] == job
+    assert payload["annotations_only"] is True
+    assert payload["reviews"][0]["verdict"] == "refused"
+    assert payload["reviews"][0]["reviewed_at"]
+    assert payload["reviews"][0]["source_sha256"] is None
+    assert payload["reviews"][0]["candidate_text"] is None
+    assert payload["engine_report"] is None
+
+
+def test_passive_review_reads_do_not_keep_an_idle_job_alive(client, job, monkeypatch):
+    from app.jobs import store as store_module
+    from app.schemas import JobStatus
+
+    now = [1000.0]
+    monkeypatch.setattr(store_module.time, "monotonic", lambda: now[0])
+    store = client.app.state.job_store
+    store.update_job(job, status=JobStatus.COMPLETED_WITH_REVIEW_REQUIRED)
+    now[0] += 3500
+    assert client.get(f"/api/jobs/{job}/reviews").status_code == 200
+    assert client.get(f"/api/jobs/{job}").status_code == 200
+    now[0] += 100
+    assert store.sweep() == 1
+
+
+def test_new_review_routes_require_the_job_token(client, job):
+    import hashlib
+
+    from app.schemas import JobStatus
+
+    token = "review-owner-secret"
+    client.app.state.job_store.update_job(
+        job, status=JobStatus.COMPLETED, token_hash=hashlib.sha256(token.encode()).hexdigest()
+    )
+    for method, suffix in (("get", "export"), ("post", "activity")):
+        url = f"/api/jobs/{job}/reviews/{suffix}"
+        assert getattr(client, method)(url).status_code == 404
+        response = getattr(client, method)(url, headers={"X-Job-Token": token})
+        assert response.status_code in (200, 204)
+        assert token not in response.text
+        assert "token_hash" not in response.text
+
+
+def test_export_and_activity_reject_unknown_jobs_and_export_waits_for_completion(client, job):
+    assert client.post("/api/jobs/unknown/reviews/activity").status_code == 404
+    assert client.get("/api/jobs/unknown/reviews/export").status_code == 404
+    assert client.get(f"/api/jobs/{job}/reviews/export").status_code == 409

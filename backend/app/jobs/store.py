@@ -32,6 +32,7 @@ from app.schemas import (
     Provider,
     SSEEvent,
 )
+from app.schemas.job import TERMINAL_SUCCESS_STATES
 
 logger = logging.getLogger(__name__)
 
@@ -40,14 +41,7 @@ _DEFAULT_TTL_SECONDS = 3600  # 1 hour
 _MAX_COMPLETED_JOBS = 200
 
 #: Every state after which a job never changes again (eviction-eligible).
-_TERMINAL_STATES = frozenset(
-    {
-        JobStatus.COMPLETED,
-        JobStatus.COMPLETED_WITH_FALLBACKS,
-        JobStatus.FAILED,
-        JobStatus.CANCELLED,
-    }
-)
+_TERMINAL_STATES = TERMINAL_SUCCESS_STATES | {JobStatus.FAILED, JobStatus.CANCELLED}
 
 
 class JobStore:
@@ -137,6 +131,8 @@ class JobStore:
         chunks_total: int | None = None,
         retries: int | None = None,
         fallbacks: int | None = None,
+        review_lines: int | None = None,
+        review_reasons: dict[str, int] | None = None,
         duration_seconds: float | None = None,
         error: str | None = None,
         reviews: dict[str, dict] | None = None,
@@ -176,6 +172,10 @@ class JobStore:
                 job.retries = retries
             if fallbacks is not None:
                 job.fallbacks = fallbacks
+            if review_lines is not None:
+                job.review_lines = review_lines
+            if review_reasons is not None:
+                job.review_reasons = review_reasons
             if duration_seconds is not None:
                 job.duration_seconds = duration_seconds
             if error is not None:
@@ -193,7 +193,21 @@ class JobStore:
             # included; forgetting a terminal state here means the job is
             # NEVER TTL-evicted.
             if job.status in _TERMINAL_STATES:
-                self._completed_at.setdefault(job_id, time.monotonic())
+                if reviews is not None:
+                    self._completed_at[job_id] = time.monotonic()
+                else:
+                    self._completed_at.setdefault(job_id, time.monotonic())
+
+    def touch_review(self, job_id: str) -> None:
+        """Renew retention on explicit review activity, never on status polling.
+
+        This only extends the in-memory job's idle timeout. The hard job cap
+        and process restarts still apply; callers must export valuable work.
+        """
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is not None and job.status in _TERMINAL_STATES:
+                self._completed_at[job_id] = time.monotonic()
 
     # ------------------------------------------------------------------
     # SSE
@@ -422,6 +436,9 @@ class JobStore:
                 "duration_seconds": job.duration_seconds or 0.0,
                 "status": job.status.value,
                 "fallbacks": job.fallbacks,
+                "review_lines": job.review_lines,
+                "review_reasons": job.review_reasons,
+                "withheld_files": job.withheld_files,
             },
         )
 
@@ -439,7 +456,7 @@ class JobStore:
         emit — and the event loop itself — for the duration.
         """
         now = time.monotonic()
-        stale = [jid for jid, ts in self._completed_at.items() if now - ts > self._ttl_seconds]
+        stale = [jid for jid, ts in self._completed_at.items() if now - ts >= self._ttl_seconds]
         # Hard cap: if too many completed jobs, evict oldest first
         if len(self._completed_at) > _MAX_COMPLETED_JOBS:
             by_age = sorted(self._completed_at, key=self._completed_at.get)  # type: ignore[arg-type]

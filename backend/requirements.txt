@@ -19,7 +19,7 @@
 # flattened; the instruction below said otherwise for long enough that nobody
 # could have followed it.
 #
-#   pip install 'saknussemm[vision] @ git+https://github.com/maribakulj/saknussemm@main'
+#   pip install 'saknussemm[vision] @ git+https://github.com/maribakulj/saknussemm@8a0a00de99531ab375b62a1737de2fb6d70c70b0'
 #   pip install -r backend/requirements.txt -r backend/requirements-dev.txt
 #
 # REFRESHING an environment that already carries the library needs

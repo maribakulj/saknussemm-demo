@@ -11,6 +11,10 @@ on:
 permissions:
   contents: read
 
+# Same reviewed library commit as both Dockerfile defaults.
+env:
+  SAKNUSSEMM_REF: 8a0a00de99531ab375b62a1737de2fb6d70c70b0
+
 # Cancel in-flight CI when a newer commit is pushed to the same ref.
 # Saves CI minutes; the only thing that matters is the latest state.
 # Per-ref grouping keeps PRs and pushes to other branches independent.
@@ -52,7 +56,7 @@ jobs:
           python-version: "3.11"
           cache: pip
       - name: Install saknussemm (editable, sibling package)
-        run: pip install 'saknussemm[vision] @ git+https://github.com/maribakulj/saknussemm@main'
+        run: pip install "saknussemm[vision] @ git+https://github.com/maribakulj/saknussemm@${SAKNUSSEMM_REF}"
       - name: Install backend dependencies
         working-directory: backend
         run: pip install -r requirements.txt -r requirements-dev.txt
@@ -75,7 +79,7 @@ jobs:
           python-version: "3.11"
           cache: pip
       - name: Install saknussemm (editable, sibling package)
-        run: pip install 'saknussemm[vision] @ git+https://github.com/maribakulj/saknussemm@main'
+        run: pip install "saknussemm[vision] @ git+https://github.com/maribakulj/saknussemm@${SAKNUSSEMM_REF}"
       - name: Install backend dependencies
         working-directory: backend
         run: pip install -r requirements.txt -r requirements-dev.txt
@@ -112,7 +116,7 @@ jobs:
           python-version: "3.11"
           cache: pip
       - name: Install saknussemm (editable, sibling package)
-        run: pip install 'saknussemm[vision] @ git+https://github.com/maribakulj/saknussemm@main'
+        run: pip install "saknussemm[vision] @ git+https://github.com/maribakulj/saknussemm@${SAKNUSSEMM_REF}"
       - name: Install backend dependencies
         working-directory: backend
         run: pip install -r requirements.txt -r requirements-dev.txt
@@ -135,7 +139,7 @@ jobs:
         # resolve. Audit the resolved environment after install
         # (pip-audit -r doesn't understand editable lines).
         run: |
-          pip install 'saknussemm[vision] @ git+https://github.com/maribakulj/saknussemm@main'
+          pip install "saknussemm[vision] @ git+https://github.com/maribakulj/saknussemm@${SAKNUSSEMM_REF}"
           pip install -r backend/requirements.txt
           pip install bandit[toml]==1.9.4 pip-audit==2.10.0
       - name: bandit (static analysis)
@@ -217,7 +221,7 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Install saknussemm (editable, sibling package)
-        run: pip install 'saknussemm[vision] @ git+https://github.com/maribakulj/saknussemm@main'
+        run: pip install "saknussemm[vision] @ git+https://github.com/maribakulj/saknussemm@${SAKNUSSEMM_REF}"
       - name: Install backend dependencies
         working-directory: backend
         run: pip install -r requirements.txt -r requirements-dev.txt

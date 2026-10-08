@@ -1,11 +1,11 @@
 /**
  * IIIF Image API region URLs — a line's own pixels, without storing a thing.
  *
- * ALTO coordinates and the IIIF region parameter live in the SAME space: a
- * service serving the full scan declares exactly the page's own dimensions
- * (measured on Gallica: `info.json` says 6802×9121 for an ALTO page of
- * 6802×9121). So the coordinates go through verbatim — no scale, no
- * transform, and no local derivative to crop.
+ * Coordinates must already be pixels in THIS image's coordinate frame.
+ * The caller must verify the page identity, origin, orientation and dimensions.
+ * ALTO can use mm10; neither those units nor a crop/rotation transform can be
+ * inferred from the manifest. The viewer requires explicit confirmation and
+ * otherwise does not request a crop. This helper does not convert units.
  *
  * That matters beyond convenience. Cropping a DOWNSCALED derivative locally
  * is how a line ends up cut from the wrong place: Gallica's `!1600,1600`

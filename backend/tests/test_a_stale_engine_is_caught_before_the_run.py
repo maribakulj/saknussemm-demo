@@ -21,6 +21,7 @@ from pathlib import Path
 import pytest
 
 from app.jobs.engine_contract import (
+    REINSTALL,
     REQUIRED_RESULT_ATTRS,
     EngineTooOldError,
     missing_result_attrs,
@@ -28,6 +29,14 @@ from app.jobs.engine_contract import (
 )
 
 RUNNER_SOURCE = Path(__file__).resolve().parent.parent / "app" / "jobs" / "runner.py"
+
+
+def test_reinstall_recipe_matches_the_reviewed_container_commit():
+    root = Path(__file__).resolve().parents[2]
+    ref = re.search(r"ARG SAKNUSSEMM_REF=([0-9a-f]{40})", (root / "Dockerfile").read_text())
+    assert ref is not None
+    assert f"saknussemm@{ref.group(1)}" in REINSTALL
+    assert "saknussemm@main" not in REINSTALL
 
 
 def test_the_installed_engine_satisfies_the_contract():
@@ -42,7 +51,7 @@ def test_a_stale_result_is_refused_and_every_gap_is_named_at_once():
     @dataclass
     class StaleResult:
         # A plausible pre-#134 shape: everything the runner reads except
-        # the two attributes that landed later.
+        # the attributes that landed later.
         total_chunks: int = 0
         total_reconciled: int = 0
         fallback_lines: int = 0
@@ -52,7 +61,11 @@ def test_a_stale_result_is_refused_and_every_gap_is_named_at_once():
         report: object = None
         corrected_files: dict = field(default_factory=dict)
 
-    assert missing_result_attrs(StaleResult) == ["undeliverable_files"]
+    assert missing_result_attrs(StaleResult) == [
+        "review_lines",
+        "review_reasons",
+        "undeliverable_files",
+    ]
 
     with pytest.raises(EngineTooOldError) as excinfo:
         require_engine_result_api(StaleResult)

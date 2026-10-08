@@ -18,6 +18,33 @@ const stats: JobStats = {
 }
 
 describe('DownloadButton', () => {
+  it('names every missing file and the engine explanation', () => {
+    render(
+      <DownloadButton
+        jobId="j1"
+        status="completed_with_withheld_files"
+        stats={{
+          ...stats,
+          withheld_files: { 'page-002.xml': 'projection_diverged: L7' },
+        }}
+      />,
+    )
+    expect(screen.getByText('page-002.xml')).toBeInTheDocument()
+    expect(screen.getByText(/projection_diverged: L7/)).toBeInTheDocument()
+  })
+  it('labels flagged output as a candidate even when some files were withheld', () => {
+    render(
+      <DownloadButton
+        jobId="j1"
+        stats={{ ...stats, review_lines: 2, review_reasons: { digits_changed: 2 } }}
+        status="completed_with_withheld_files"
+      />,
+    )
+    expect(screen.getByRole('button', { name: /XML candidat pour relecture/i })).toBeInTheDocument()
+    expect(screen.getByText(/2 ligne\(s\).*relecture/i)).toBeInTheDocument()
+    expect(screen.getByText(/digits_changed/)).toBeInTheDocument()
+  })
+
   it('renders the stats grid when stats are present', () => {
     render(<DownloadButton jobId="j1" stats={stats} />)
     expect(screen.getByText('12')).toBeInTheDocument()

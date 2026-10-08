@@ -1,6 +1,6 @@
 """What this runner reads off a finished run, verified BEFORE the run.
 
-`saknussemm` is installed from `git+…@main`, unpinned, and its
+Historically `saknussemm` was installed from `git+…@main`, unpinned, and its
 `__version__` does not move on every API change: it read `0.9.0` both
 before and after `CorrectionResult.undeliverable_files` landed (library
 PR #134, 2026-08-19). So an environment carrying a months-old engine is
@@ -36,7 +36,7 @@ from saknussemm import CorrectionResult
 #: numbers match.
 REINSTALL = (
     "pip install --force-reinstall --no-deps "
-    "'saknussemm[vision] @ git+https://github.com/maribakulj/saknussemm@main'"
+    "'saknussemm[vision] @ git+https://github.com/maribakulj/saknussemm@8a0a00de99531ab375b62a1737de2fb6d70c70b0'"
     "   (Docker: rebuild the saknussemm layer — "
     "`docker compose build --no-cache`, or pass "
     "`--build-arg SAKNUSSEMM_REF=<commit>`)"
@@ -55,6 +55,8 @@ REQUIRED_RESULT_ATTRS = (
     "fallback_lines",
     "reconcile_metrics",
     "report",
+    "review_lines",
+    "review_reasons",
     "retry_count",
     "total_chunks",
     "total_reconciled",

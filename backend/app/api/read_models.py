@@ -75,7 +75,12 @@ def build_layout(
 
     Page dimensions are derived from line coordinates when the source Page
     element omits WIDTH/HEIGHT. ``images`` maps source_file → image filename;
-    a matching entry becomes the page's ``image_url``.
+    a matching entry becomes the page's ``image_url`` **only when that source
+    file carries a single page**. One uploaded scan cannot stand for several
+    physical pages: showing it under every page of a multipage XML let a
+    reviewer judge the text of page 2 against the scan of page 1, and the
+    saved verdict carried no trace of that. Such pages get no image, as the
+    vision path (``page_image_assets``) already refuses them outright.
 
     ``report`` adds, per line, **what the engine decided and why**: the verdict
     code and the text the producer actually proposed. Without it a reviewer
@@ -94,12 +99,19 @@ def build_layout(
                 "verdict": reason.code if reason is not None else trace.decision.status,
                 "verdict_detail": reason.detail if reason is not None else None,
                 "proposed_text": proposed,
+                "review_reasons": [
+                    item.model_dump(mode="json") for item in trace.decision.review_reasons
+                ],
                 # A proposal the engine declined is the reviewer's most
                 # interesting case: something was on offer and was refused.
                 "proposal_declined": bool(
                     reason is not None and proposed is not None and proposed != trace.source_text
                 ),
             }
+
+    pages_per_source: dict[str, int] = {}
+    for page in document_manifest.pages:
+        pages_per_source[page.source_file] = pages_per_source.get(page.source_file, 0) + 1
 
     pages_out = []
     for page in document_manifest.pages:
@@ -130,6 +142,7 @@ def build_layout(
                                 "verdict": None,
                                 "verdict_detail": None,
                                 "proposed_text": None,
+                                "review_reasons": [],
                                 "proposal_declined": False,
                             },
                         ),
@@ -159,8 +172,11 @@ def build_layout(
                 ph = max(ys)
 
         # images is keyed by source_file (not page_id) to avoid collisions
-        # when multiple ALTO files share the same Page/@ID value.
-        image_filename = images.get(page.source_file)
+        # when multiple ALTO files share the same Page/@ID value. A file
+        # with several pages has no per-page scan in that map: no image.
+        image_filename = (
+            images.get(page.source_file) if pages_per_source[page.source_file] == 1 else None
+        )
         image_url = f"/api/jobs/{job_id}/images/{image_filename}" if image_filename else None
         pages_out.append(
             {
