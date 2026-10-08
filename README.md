@@ -70,7 +70,7 @@ in the library — or out of scope.
 # CI and both Dockerfile defaults (saknussemm PR #178). The
 # [vision] extra is Pillow, and this backend needs it: without it every
 # vision job fails at the first crop.
-pip install 'saknussemm[vision] @ git+https://github.com/maribakulj/saknussemm@d30c493f64150b890609123d66c7c5820ba10b48'
+pip install 'saknussemm[vision] @ git+https://github.com/maribakulj/saknussemm@8a0a00de99531ab375b62a1737de2fb6d70c70b0'
 # After changing this commit in an existing environment, add
 # --force-reinstall --no-deps: the version number may stay unchanged.
 pip install -r backend/requirements.txt -r backend/requirements-dev.txt

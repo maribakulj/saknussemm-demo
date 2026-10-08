@@ -36,7 +36,7 @@ from saknussemm import CorrectionResult
 #: numbers match.
 REINSTALL = (
     "pip install --force-reinstall --no-deps "
-    "'saknussemm[vision] @ git+https://github.com/maribakulj/saknussemm@d30c493f64150b890609123d66c7c5820ba10b48'"
+    "'saknussemm[vision] @ git+https://github.com/maribakulj/saknussemm@8a0a00de99531ab375b62a1737de2fb6d70c70b0'"
     "   (Docker: rebuild the saknussemm layer — "
     "`docker compose build --no-cache`, or pass "
     "`--build-arg SAKNUSSEMM_REF=<commit>`)"
