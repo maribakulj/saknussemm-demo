@@ -541,7 +541,13 @@ def test_zip_with_images():
     # Minimal valid PNG magic (backend stores and serves without parsing content)
     fake_png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
 
-    xml_data = SAMPLE_XML.read_bytes()
+    # One scan stands for one physical page: keep the sample's first page
+    # only, a multipage file with a single image gets no image_url.
+    tree = etree.fromstring(SAMPLE_XML.read_bytes())
+    for page in tree.iter("{*}Page"):
+        if page is not next(tree.iter("{*}Page")):
+            page.getparent().remove(page)
+    xml_data = etree.tostring(tree, xml_declaration=True, encoding="UTF-8")
     # The image stem must match the XML stem for auto-linking
     xml_name = SAMPLE_XML.stem + ".xml"
     img_name = SAMPLE_XML.stem + ".png"
